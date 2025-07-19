@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
 		if (data.attending === "yes") {
 			try {
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.org>",
+					from: "MaubenTech Roots <events@maubentech.com>",
 					to: [data.email],
 					subject:
 						"RSVP Confirmation - Corporate Cocktail & Fundraiser Evening",
@@ -201,8 +201,8 @@ export async function POST(request: NextRequest) {
 			// Send internal notification
 			try {
 				await resend.emails.send({
-					from: "RSVP System <noreply@maubentech.org>",
-					to: ["events@maubentech.org"], // Replace with actual internal email
+					from: "RSVP System <info@maubentech.com>",
+					to: ["events@maubentech.com"], // Replace with actual internal email
 					subject: `${existingRSVP ? "Updated" : "New"} RSVP Received - Corporate Cocktail Evening`,
 					react: InternalNotificationEmail({ data }),
 				});
