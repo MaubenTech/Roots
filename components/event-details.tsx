@@ -25,7 +25,7 @@ export default function EventDetails({ isVip = false, hasLinkIdentifier = false 
 		{
 			icon: MapPin,
 			label: "Venue",
-			value: "The Grand Ballroom, Victoria Island, Lagos",
+			value: "Oladipo Diya St, Durumi 900103, Abuja by Smokey house",
 			color: "text-[#2C3E2D]",
 		},
 		{
@@ -67,20 +67,24 @@ export default function EventDetails({ isVip = false, hasLinkIdentifier = false 
 					))}
 				</div>
 
-				{/* Guest Policy - only show for VIP users in a separate centered row */}
+				{/* Guest Policy - only show for VIP users with proper responsive centering */}
 				{hasLinkIdentifier && isVip && (
 					<motion.div
 						initial={{ opacity: 0, y: 30 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.6, delay: 0.5 }}
 						viewport={{ once: true }}
-						className="mt-12 flex justify-center">
-						<div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 max-w-md">
-							<div className="text-[#2C3E2D] mb-4 flex justify-center">
-								<Users size={48} />
+						className="mt-12">
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+							<div className="md:col-span-2 lg:col-start-2 lg:col-span-2">
+								<div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2">
+									<div className="text-[#2C3E2D] mb-4 flex justify-center">
+										<Users size={48} />
+									</div>
+									<h3 className="text-xl font-semibold text-[#2C3E2D] mb-2 text-center">Guest Policy</h3>
+									<p className="text-[#5D4E37] text-lg leading-relaxed text-center">Maximum 1 guest per attendee</p>
+								</div>
 							</div>
-							<h3 className="text-xl font-semibold text-[#2C3E2D] mb-2 text-center">Guest Policy</h3>
-							<p className="text-[#5D4E37] text-lg leading-relaxed text-center">Maximum 1 guest per attendee</p>
 						</div>
 					</motion.div>
 				)}
