@@ -18,14 +18,21 @@ async function getAllRSVPs() {
 	return new Promise<any[]>((resolve, reject) => {
 		const db = getDatabase();
 
-		db.all("SELECT * FROM rsvps ORDER BY created_at DESC", (err, rows) => {
-			if (err) {
-				console.error("Database query error:", err);
-				reject(err);
-			} else {
-				resolve(rows);
+		db.all(
+			`SELECT r.*, li.uuid as link_uuid, li.is_vip, 
+          CASE WHEN li.uuid LIKE 'test-%' THEN 1 ELSE 0 END as is_test
+   FROM rsvps r
+   JOIN link_identifiers li ON r.link_identifier_id = li.id
+   ORDER BY r.created_at DESC`,
+			(err, rows) => {
+				if (err) {
+					console.error("Database query error:", err);
+					reject(err);
+				} else {
+					resolve(rows);
+				}
 			}
-		});
+		);
 
 		db.close();
 	});
@@ -37,10 +44,7 @@ export async function GET(request: NextRequest) {
 		const authHeader = request.headers.get("authorization");
 
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 }
-			);
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
 		const token = authHeader.substring(7);
@@ -49,16 +53,10 @@ export async function GET(request: NextRequest) {
 			const decoded = verify(token, JWT_SECRET!) as any; // Non-null assertion operator
 
 			if (!decoded.admin) {
-				return NextResponse.json(
-					{ error: "Unauthorized" },
-					{ status: 401 }
-				);
+				return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 			}
 		} catch (jwtError) {
-			return NextResponse.json(
-				{ error: "Invalid token" },
-				{ status: 401 }
-			);
+			return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 		}
 
 		// Fetch RSVPs if authenticated
@@ -66,9 +64,6 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json({ rsvps });
 	} catch (error) {
 		console.error("Error fetching RSVPs:", error);
-		return NextResponse.json(
-			{ error: "Failed to fetch RSVPs" },
-			{ status: 500 }
-		);
+		return NextResponse.json({ error: "Failed to fetch RSVPs" }, { status: 500 });
 	}
 }

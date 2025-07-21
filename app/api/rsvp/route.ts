@@ -15,92 +15,70 @@ function getDatabase() {
 	return new Database(dbPath);
 }
 
-// Initialize database table
-async function initializeDatabase() {
-	return new Promise<void>((resolve, reject) => {
+// Get link identifier data
+async function getLinkIdentifier(identifier: string) {
+	return new Promise<any>((resolve, reject) => {
 		const db = getDatabase();
 
-		db.serialize(() => {
-			db.run(
-				`
-        CREATE TABLE IF NOT EXISTS rsvps (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          full_name TEXT NOT NULL,
-          email TEXT NOT NULL,
-          phone TEXT NOT NULL,
-          company TEXT,
-          attending TEXT NOT NULL,
-          has_guests TEXT,
-          guest_count INTEGER DEFAULT 0,
-          donation TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `,
-				(err) => {
-					if (err) {
-						console.error("Database initialization error:", err);
-						reject(err);
-					} else {
-						console.log("Database initialized successfully");
-						resolve();
-					}
-				}
-			);
+		db.get("SELECT * FROM link_identifiers WHERE uuid = ?", [identifier], (err, row) => {
+			if (err) {
+				console.error("Database query error:", err);
+				reject(err);
+			} else {
+				resolve(row);
+			}
 		});
 
 		db.close();
 	});
 }
 
-// Check if RSVP exists for email
-async function checkExistingRSVP(email: string) {
+// Check if RSVP exists for link identifier
+async function checkExistingRSVPByLink(linkId: number) {
 	return new Promise<any>((resolve, reject) => {
 		const db = getDatabase();
 
-		db.get(
-			"SELECT * FROM rsvps WHERE email = ? ORDER BY created_at DESC LIMIT 1",
-			[email],
-			(err, row) => {
-				if (err) {
-					console.error("Database query error:", err);
-					reject(err);
-				} else {
-					resolve(row);
-				}
+		db.get("SELECT * FROM rsvps WHERE link_identifier_id = ? ORDER BY created_at DESC LIMIT 1", [linkId], (err, row) => {
+			if (err) {
+				console.error("Database query error:", err);
+				reject(err);
+			} else {
+				resolve(row);
 			}
-		);
+		});
 
 		db.close();
 	});
 }
 
 // Update existing RSVP
-async function updateRSVP(email: string, data: any) {
+async function updateRSVPByLink(linkId: number, data: any) {
 	return new Promise<void>((resolve, reject) => {
 		const db = getDatabase();
 
 		db.run(
 			`UPDATE rsvps SET 
-        full_name = ?, phone = ?, company = ?, attending = ?, 
+        full_name = ?, email = ?, phone = ?, company = ?, attending = ?, 
         has_guests = ?, guest_count = ?, donation = ?, 
         created_at = CURRENT_TIMESTAMP
-      WHERE email = ?`,
+      WHERE link_identifier_id = ?`,
 			[
 				data.fullName,
+				data.email,
 				data.phone,
 				data.company || "",
 				data.attending,
 				data.hasGuests || "",
 				data.guestCount || 0,
 				data.donation || "",
-				email,
+				linkId,
 			],
 			(err) => {
 				if (err) {
 					console.error("Database update error:", err);
 					reject(err);
 				} else {
-					console.log("RSVP updated successfully for email:", email);
+					console.log("RSVP updated successfully for link ID:", linkId);
 					resolve();
 				}
 			}
@@ -111,15 +89,15 @@ async function updateRSVP(email: string, data: any) {
 }
 
 // Insert new RSVP data
-async function insertRSVP(data: any) {
+async function insertRSVPWithLink(data: any, linkId: number) {
 	return new Promise<void>((resolve, reject) => {
 		const db = getDatabase();
 
 		db.run(
 			`INSERT INTO rsvps (
         full_name, email, phone, company, attending, 
-        has_guests, guest_count, donation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        has_guests, guest_count, donation, link_identifier_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				data.fullName,
 				data.email,
@@ -129,16 +107,14 @@ async function insertRSVP(data: any) {
 				data.hasGuests || "",
 				data.guestCount || 0,
 				data.donation || "",
+				linkId,
 			],
 			function (err) {
 				if (err) {
 					console.error("Database insert error:", err);
 					reject(err);
 				} else {
-					console.log(
-						"RSVP inserted successfully with ID:",
-						this.lastID
-					);
+					console.log("RSVP inserted successfully with ID:", this.lastID);
 					resolve();
 				}
 			}
@@ -150,48 +126,57 @@ async function insertRSVP(data: any) {
 
 export async function POST(request: NextRequest) {
 	try {
-		// Initialize database first
-		await initializeDatabase();
-
 		const data = await request.json();
 
 		// Validate required fields
-		if (!data.fullName || !data.email || !data.phone || !data.attending) {
-			return NextResponse.json(
-				{ error: "Missing required fields" },
-				{ status: 400 }
-			);
+		if (!data.fullName || !data.email || !data.phone || !data.attending || !data.linkIdentifier) {
+			return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
 		}
 
-		// Validate guest count limit
-		if (data.hasGuests === "yes" && data.guestCount > 1) {
+		// Get link identifier data
+		const linkData = await getLinkIdentifier(data.linkIdentifier);
+		if (!linkData) {
+			return NextResponse.json({ error: "Invalid link identifier" }, { status: 400 });
+		}
+
+		// Validate guest count for non-VIP links
+		if (!linkData.is_vip && data.hasGuests === "yes" && data.guestCount > 0) {
 			return NextResponse.json(
 				{
-					error: "Maximum of 1 guest allowed per attendee",
+					error: "Guest privileges are only available for VIP invitations",
 				},
 				{ status: 400 }
 			);
 		}
 
-		// Check if RSVP already exists
-		const existingRSVP = await checkExistingRSVP(data.email);
+		// Validate guest count limit for VIP links
+		if (linkData.is_vip && data.hasGuests === "yes" && data.guestCount > 1) {
+			return NextResponse.json(
+				{
+					error: "Maximum of 1 guest allowed per VIP attendee",
+				},
+				{ status: 400 }
+			);
+		}
+
+		// Check if RSVP already exists for this link
+		const existingRSVP = await checkExistingRSVPByLink(linkData.id);
 
 		if (existingRSVP) {
 			// Update existing RSVP
-			await updateRSVP(data.email, data);
+			await updateRSVPByLink(linkData.id, data);
 		} else {
 			// Insert new RSVP
-			await insertRSVP(data);
+			await insertRSVPWithLink(data, linkData.id);
 		}
 
 		// Send confirmation email to user
 		if (data.attending === "yes") {
 			try {
 				await resend.emails.send({
-					from: "MaubenTech Roots <events@maubentech.com>",
+					from: "MaubenTech Roots <noreply@maubentech.org>",
 					to: [data.email],
-					subject:
-						"RSVP Confirmation - Corporate Cocktail & Fundraiser Evening",
+					subject: "RSVP Confirmation - Corporate Cocktail & Fundraiser Evening",
 					react: RSVPConfirmationEmail({ data }),
 				});
 			} catch (emailError) {
@@ -201,31 +186,29 @@ export async function POST(request: NextRequest) {
 			// Send internal notification
 			try {
 				await resend.emails.send({
-					from: "RSVP System <info@maubentech.com>",
-					to: ["events@maubentech.com"], // Replace with actual internal email
-					subject: `${existingRSVP ? "Updated" : "New"} RSVP Received - Corporate Cocktail Evening`,
-					react: InternalNotificationEmail({ data }),
+					from: "RSVP System <noreply@maubentech.org>",
+					to: ["events@maubentech.org"], // Replace with actual internal email
+					subject: `${existingRSVP ? "Updated" : "New"} ${linkData.is_vip ? "VIP " : ""}RSVP Received - Corporate Cocktail Evening`,
+					react: InternalNotificationEmail({
+						data: {
+							...data,
+							isVip: linkData.is_vip,
+							linkIdentifier: data.linkIdentifier,
+						},
+					}),
 				});
 			} catch (emailError) {
-				console.error(
-					"Error sending internal notification:",
-					emailError
-				);
+				console.error("Error sending internal notification:", emailError);
 			}
 		}
 
 		return NextResponse.json({
 			success: true,
-			message: existingRSVP
-				? "RSVP updated successfully"
-				: "RSVP submitted successfully",
+			message: existingRSVP ? "RSVP updated successfully" : "RSVP submitted successfully",
 			isUpdate: !!existingRSVP,
 		});
 	} catch (error) {
 		console.error("RSVP submission error:", error);
-		return NextResponse.json(
-			{ error: "Failed to submit RSVP" },
-			{ status: 500 }
-		);
+		return NextResponse.json({ error: "Failed to submit RSVP" }, { status: 500 });
 	}
 }

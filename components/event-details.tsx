@@ -3,40 +3,39 @@
 import { motion } from "framer-motion";
 import { Calendar, Clock, MapPin, Shirt, Users } from "lucide-react";
 
-const eventDetails = [
-	{
-		icon: Calendar,
-		label: "Date",
-		value: "Saturday, March 15th, 2025",
-		color: "text-[#B8860B]",
-	},
-	{
-		icon: Clock,
-		label: "Time",
-		value: "4:00 PM",
-		color: "text-[#6B8E23]",
-	},
-	{
-		icon: MapPin,
-		label: "Venue",
-		value: "The Grand Ballroom, Victoria Island, Lagos",
-		color: "text-[#2C3E2D]",
-	},
-	{
-		icon: Shirt,
-		label: "Dress Code",
-		value: "Corporate Fit That Bangs",
-		color: "text-[#B8860B]",
-	},
-	{
-		icon: Users,
-		label: "Guest Policy",
-		value: "Maximum 1 guest per attendee",
-		color: "text-[#2C3E2D]",
-	},
-];
+interface EventDetailsProps {
+	isVip?: boolean;
+	hasLinkIdentifier?: boolean;
+}
 
-export default function EventDetails() {
+export default function EventDetails({ isVip = false, hasLinkIdentifier = false }: EventDetailsProps) {
+	const eventDetails = [
+		{
+			icon: Calendar,
+			label: "Date",
+			value: "Saturday, August 30th, 2025",
+			color: "text-[#B8860B]",
+		},
+		{
+			icon: Clock,
+			label: "Time",
+			value: "4:00 PM",
+			color: "text-[#6B8E23]",
+		},
+		{
+			icon: MapPin,
+			label: "Venue",
+			value: "The Grand Ballroom, Victoria Island, Lagos",
+			color: "text-[#2C3E2D]",
+		},
+		{
+			icon: Shirt,
+			label: "Dress Code",
+			value: "Corporate Fit That Bangs",
+			color: "text-[#B8860B]",
+		},
+	];
+
 	return (
 		<section className="py-20 px-4">
 			<div className="max-w-6xl mx-auto">
@@ -49,6 +48,7 @@ export default function EventDetails() {
 					Event Details
 				</motion.h2>
 
+				{/* Main event details - always 4 columns */}
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
 					{eventDetails.map((detail, index) => (
 						<motion.div
@@ -61,15 +61,29 @@ export default function EventDetails() {
 							<div className={`${detail.color} mb-4`}>
 								<detail.icon size={48} />
 							</div>
-							<h3 className="text-xl font-semibold text-[#2C3E2D] mb-2">
-								{detail.label}
-							</h3>
-							<p className="text-[#5D4E37] text-lg leading-relaxed">
-								{detail.value}
-							</p>
+							<h3 className="text-xl font-semibold text-[#2C3E2D] mb-2">{detail.label}</h3>
+							<p className="text-[#5D4E37] text-lg leading-relaxed">{detail.value}</p>
 						</motion.div>
 					))}
 				</div>
+
+				{/* Guest Policy - only show for VIP users in a separate centered row */}
+				{hasLinkIdentifier && isVip && (
+					<motion.div
+						initial={{ opacity: 0, y: 30 }}
+						whileInView={{ opacity: 1, y: 0 }}
+						transition={{ duration: 0.6, delay: 0.5 }}
+						viewport={{ once: true }}
+						className="mt-12 flex justify-center">
+						<div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 max-w-md">
+							<div className="text-[#2C3E2D] mb-4 flex justify-center">
+								<Users size={48} />
+							</div>
+							<h3 className="text-xl font-semibold text-[#2C3E2D] mb-2 text-center">Guest Policy</h3>
+							<p className="text-[#5D4E37] text-lg leading-relaxed text-center">Maximum 1 guest per attendee</p>
+						</div>
+					</motion.div>
+				)}
 			</div>
 		</section>
 	);
