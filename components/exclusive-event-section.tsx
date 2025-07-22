@@ -5,7 +5,7 @@ import { Lock, Star, Users, Calendar } from "lucide-react";
 
 export default function ExclusiveEventSection() {
 	return (
-		<section className="py-20 px-4 bg-white">
+		<section id="exclusive-event-section" className="py-20 px-4 bg-white">
 			<div className="max-w-4xl mx-auto text-center">
 				<motion.div
 					initial={{ opacity: 0, y: 30 }}
