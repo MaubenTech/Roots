@@ -100,7 +100,7 @@ export default function HomePage() {
 			{linkIdentifier && isValidLink && linkData ? (
 				<RSVPForm onSuccess={handleRSVPSuccess} linkIdentifier={linkIdentifier} isVip={linkData.is_vip} existingRSVP={linkData.existingRSVP} />
 			) : linkIdentifier && isValidLink === false ? (
-				<section className="py-20 px-4 bg-white">
+				<section id="invalid-link-section" className="py-20 px-4 bg-white">
 					<div className="max-w-4xl mx-auto text-center">
 						<h2 className="text-3xl font-bold text-red-600 mb-4">Invalid Invitation Link</h2>
 						<p className="text-lg text-[#5D4E37]">The invitation link you used is not valid or has expired.</p>

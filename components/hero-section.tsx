@@ -16,6 +16,11 @@ export default function HeroSection() {
 				behavior: "smooth",
 				block: "start",
 			});
+		} else if (document.getElementById("invalid-link-section")) {
+			document.getElementById("invalid-link-section")?.scrollIntoView({
+				behavior: "smooth",
+				block: "start",
+			});
 		}
 	};
 
