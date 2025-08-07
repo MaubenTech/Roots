@@ -31,7 +31,7 @@ export default function EventDetails({ isVip = false, hasLinkIdentifier = false 
 		{
 			icon: Shirt,
 			label: "Dress Code",
-			value: "Corporate Fit That Bangs",
+			value: "Elegant Corporate Fit",
 			color: "text-[#B8860B]",
 		},
 	];

@@ -73,7 +73,7 @@ export function RSVPConfirmationEmail({ data }: RSVPConfirmationEmailProps) {
 							<strong style={{ color: "#B8860B" }}>Venue:</strong> Oladipo Diya St, Durumi 900103, Abuja by Smokey house
 						</Text>
 						<Text style={{ fontSize: "16px", color: "#5D4E37", marginBottom: "20px" }}>
-							<strong style={{ color: "#B8860B" }}>Dress Code:</strong> Elegant Corporate Attire
+							<strong style={{ color: "#B8860B" }}>Dress Code:</strong> Elegant Corporate Fit
 						</Text>
 
 						<Hr style={{ borderColor: "#6B8E23", margin: "30px 0" }} />
