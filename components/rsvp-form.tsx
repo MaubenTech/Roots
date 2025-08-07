@@ -181,7 +181,7 @@ export default function RSVPForm({ onSuccess, linkIdentifier, isVip, existingRSV
 								<p className="text-sm text-blue-800">
 									<strong>Event Details:</strong> Saturday, March 15th, 2025 at 4:00 PM
 									<br />
-									The Grand Ballroom, Victoria Island, Lagos
+									Oladipo Diya St, Durumi 900103, Abuja by Smokey house
 								</p>
 							</div>
 						</div>
