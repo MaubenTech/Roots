@@ -10,20 +10,15 @@ import {
 	Link,
 } from "@react-email/components";
 
-interface RSVPConfirmationEmailProps {
+interface ReminderEmailProps {
 	data: {
 		fullName: string;
 		email: string;
-		phone: string;
-		company?: string;
-		attending: string;
-		hasGuests?: string;
-		guestCount?: number;
-		donation?: string;
+		attending?: string;
 	};
 }
 
-export function RSVPConfirmationEmail({ data }: RSVPConfirmationEmailProps) {
+export function ReminderEmail({ data }: ReminderEmailProps) {
 	return (
 		<Html>
 			<Head />
@@ -68,7 +63,7 @@ export function RSVPConfirmationEmail({ data }: RSVPConfirmationEmailProps) {
 								textAlign: "center",
 								marginBottom: "20px",
 							}}>
-							RSVP Confirmation
+							Event Reminder
 						</Text>
 
 						<Text
@@ -78,14 +73,36 @@ export function RSVPConfirmationEmail({ data }: RSVPConfirmationEmailProps) {
 								textAlign: "center",
 								marginBottom: "30px",
 							}}>
-							{data.attending === "yes"
-								? "Thank you for confirming your attendance!"
-								: "Thank you for your response!"}
+							Don't forget about our upcoming event!
 						</Text>
 
 						<Hr
 							style={{ borderColor: "#6B8E23", margin: "30px 0" }}
 						/>
+
+						{/* Greeting */}
+						<Text
+							style={{
+								fontSize: "16px",
+								color: "#5D4E37",
+								marginBottom: "20px",
+							}}>
+							Dear {data.fullName},
+						</Text>
+
+						<Text
+							style={{
+								fontSize: "16px",
+								color: "#5D4E37",
+								marginBottom: "20px",
+								lineHeight: "1.6",
+							}}>
+							This is a friendly reminder about the MaubenTech
+							Roots Corporate Cocktail & Fundraiser Evening.
+							{data.attending === "yes"
+								? " We're excited to see you there!"
+								: " We hope you can still join us if your plans have changed."}
+						</Text>
 
 						{/* Event Details */}
 						<Text
@@ -151,85 +168,19 @@ export function RSVPConfirmationEmail({ data }: RSVPConfirmationEmailProps) {
 							style={{ borderColor: "#6B8E23", margin: "30px 0" }}
 						/>
 
-						{/* RSVP Details */}
+						{/* Call to Action */}
 						<Text
 							style={{
-								fontSize: "20px",
-								fontWeight: "bold",
-								color: "#2C3E2D",
+								fontSize: "16px",
+								color: "#5D4E37",
 								marginBottom: "20px",
+								lineHeight: "1.6",
 							}}>
-							Your RSVP Details
+							Join us for an evening of elegance, meaningful
+							connections, and impactful conversations as we work
+							together to empower African youth through technology
+							and innovation.
 						</Text>
-
-						<Text
-							style={{
-								fontSize: "16px",
-								color: "#5D4E37",
-								marginBottom: "10px",
-							}}>
-							<strong style={{ color: "#6B8E23" }}>Name:</strong>{" "}
-							{data.fullName}
-						</Text>
-						<Text
-							style={{
-								fontSize: "16px",
-								color: "#5D4E37",
-								marginBottom: "10px",
-							}}>
-							<strong style={{ color: "#6B8E23" }}>Email:</strong>{" "}
-							{data.email}
-						</Text>
-						<Text
-							style={{
-								fontSize: "16px",
-								color: "#5D4E37",
-								marginBottom: "10px",
-							}}>
-							<strong style={{ color: "#6B8E23" }}>Phone:</strong>{" "}
-							{data.phone}
-						</Text>
-						{data.company && (
-							<Text
-								style={{
-									fontSize: "16px",
-									color: "#5D4E37",
-									marginBottom: "10px",
-								}}>
-								<strong style={{ color: "#6B8E23" }}>
-									Company:
-								</strong>{" "}
-								{data.company}
-							</Text>
-						)}
-						<Text
-							style={{
-								fontSize: "16px",
-								color: "#5D4E37",
-								marginBottom: "10px",
-							}}>
-							<strong style={{ color: "#6B8E23" }}>
-								Attending:
-							</strong>{" "}
-							{data.attending === "yes" ? "Yes" : "No"}
-						</Text>
-						{data.hasGuests === "yes" && (
-							<Text
-								style={{
-									fontSize: "16px",
-									color: "#5D4E37",
-									marginBottom: "10px",
-								}}>
-								<strong style={{ color: "#6B8E23" }}>
-									Guests:
-								</strong>{" "}
-								{data.guestCount} guest(s)
-							</Text>
-						)}
-
-						<Hr
-							style={{ borderColor: "#6B8E23", margin: "30px 0" }}
-						/>
 
 						{/* Footer */}
 						<Text
@@ -239,9 +190,7 @@ export function RSVPConfirmationEmail({ data }: RSVPConfirmationEmailProps) {
 								textAlign: "center",
 								marginBottom: "20px",
 							}}>
-							{data.attending === "yes"
-								? "We look forward to seeing you at this exclusive evening of elegance, connection, and impact!"
-								: "We're sorry you can't make it this time. We hope to see you at future MaubenTech events!"}
+							We look forward to seeing you there!
 						</Text>
 
 						<Text
@@ -252,7 +201,7 @@ export function RSVPConfirmationEmail({ data }: RSVPConfirmationEmailProps) {
 							}}>
 							For any questions, please contact us at{" "}
 							<Link
-								href="mailto:events@maubentech.com"
+								href="mailto:events@maubentech.org"
 								style={{ color: "#6B8E23" }}>
 								events@maubentech.org
 							</Link>

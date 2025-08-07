@@ -20,14 +20,18 @@ async function getLinkIdentifier(identifier: string) {
 	return new Promise<any>((resolve, reject) => {
 		const db = getDatabase();
 
-		db.get("SELECT * FROM link_identifiers WHERE uuid = ?", [identifier], (err, row) => {
-			if (err) {
-				console.error("Database query error:", err);
-				reject(err);
-			} else {
-				resolve(row);
+		db.get(
+			"SELECT * FROM link_identifiers WHERE uuid = ?",
+			[identifier],
+			(err, row) => {
+				if (err) {
+					console.error("Database query error:", err);
+					reject(err);
+				} else {
+					resolve(row);
+				}
 			}
-		});
+		);
 
 		db.close();
 	});
@@ -38,14 +42,18 @@ async function checkExistingRSVPByLink(linkId: number) {
 	return new Promise<any>((resolve, reject) => {
 		const db = getDatabase();
 
-		db.get("SELECT * FROM rsvps WHERE link_identifier_id = ? ORDER BY created_at DESC LIMIT 1", [linkId], (err, row) => {
-			if (err) {
-				console.error("Database query error:", err);
-				reject(err);
-			} else {
-				resolve(row);
+		db.get(
+			"SELECT * FROM rsvps WHERE link_identifier_id = ? ORDER BY created_at DESC LIMIT 1",
+			[linkId],
+			(err, row) => {
+				if (err) {
+					console.error("Database query error:", err);
+					reject(err);
+				} else {
+					resolve(row);
+				}
 			}
-		});
+		);
 
 		db.close();
 	});
@@ -78,7 +86,10 @@ async function updateRSVPByLink(linkId: number, data: any) {
 					console.error("Database update error:", err);
 					reject(err);
 				} else {
-					console.log("RSVP updated successfully for link ID:", linkId);
+					console.log(
+						"RSVP updated successfully for link ID:",
+						linkId
+					);
 					resolve();
 				}
 			}
@@ -114,7 +125,10 @@ async function insertRSVPWithLink(data: any, linkId: number) {
 					console.error("Database insert error:", err);
 					reject(err);
 				} else {
-					console.log("RSVP inserted successfully with ID:", this.lastID);
+					console.log(
+						"RSVP inserted successfully with ID:",
+						this.lastID
+					);
 					resolve();
 				}
 			}
@@ -129,18 +143,34 @@ export async function POST(request: NextRequest) {
 		const data = await request.json();
 
 		// Validate required fields
-		if (!data.fullName || !data.email || !data.phone || !data.attending || !data.linkIdentifier) {
-			return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+		if (
+			!data.fullName ||
+			!data.email ||
+			!data.phone ||
+			!data.attending ||
+			!data.linkIdentifier
+		) {
+			return NextResponse.json(
+				{ error: "Missing required fields" },
+				{ status: 400 }
+			);
 		}
 
 		// Get link identifier data
 		const linkData = await getLinkIdentifier(data.linkIdentifier);
 		if (!linkData) {
-			return NextResponse.json({ error: "Invalid link identifier" }, { status: 400 });
+			return NextResponse.json(
+				{ error: "Invalid link identifier" },
+				{ status: 400 }
+			);
 		}
 
 		// Validate guest count for non-VIP links
-		if (!linkData.is_vip && data.hasGuests === "yes" && data.guestCount > 0) {
+		if (
+			!linkData.is_vip &&
+			data.hasGuests === "yes" &&
+			data.guestCount > 0
+		) {
 			return NextResponse.json(
 				{
 					error: "Guest privileges are only available for VIP invitations",
@@ -150,7 +180,11 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Validate guest count limit for VIP links
-		if (linkData.is_vip && data.hasGuests === "yes" && data.guestCount > 1) {
+		if (
+			linkData.is_vip &&
+			data.hasGuests === "yes" &&
+			data.guestCount > 1
+		) {
 			return NextResponse.json(
 				{
 					error: "Maximum of 1 guest allowed per VIP attendee",
@@ -174,11 +208,16 @@ export async function POST(request: NextRequest) {
 		if (data.attending === "yes") {
 			try {
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.org>",
+					from: "MaubenTech Roots <events@maubentech.com>",
 					to: [data.email],
-					subject: "RSVP Confirmation - Corporate Cocktail & Fundraiser Evening",
+					subject:
+						"RSVP Confirmation - Corporate Cocktail & Fundraiser Evening",
 					react: RSVPConfirmationEmail({ data }),
 				});
+				console.log(
+					"Confirmation email sent successfully to:",
+					data.email
+				);
 			} catch (emailError) {
 				console.error("Error sending confirmation email:", emailError);
 			}
@@ -186,8 +225,8 @@ export async function POST(request: NextRequest) {
 			// Send internal notification
 			try {
 				await resend.emails.send({
-					from: "RSVP System <noreply@maubentech.org>",
-					to: ["events@maubentech.org"], // Replace with actual internal email
+					from: "RSVP System <events@maubentech.com>",
+					to: ["events@maubentech.com"], // Replace with actual internal email
 					subject: `${existingRSVP ? "Updated" : "New"} ${linkData.is_vip ? "VIP " : ""}RSVP Received - Corporate Cocktail Evening`,
 					react: InternalNotificationEmail({
 						data: {
@@ -197,18 +236,47 @@ export async function POST(request: NextRequest) {
 						},
 					}),
 				});
+				console.log("Internal notification sent successfully");
 			} catch (emailError) {
-				console.error("Error sending internal notification:", emailError);
+				console.error(
+					"Error sending internal notification:",
+					emailError
+				);
+			}
+		} else if (data.attending === "no") {
+			// Send confirmation email for "no" responses too
+			try {
+				await resend.emails.send({
+					from: "MaubenTech Roots <events@maubentech.com>",
+					to: [data.email],
+					subject:
+						"Thank you for your response - Corporate Cocktail & Fundraiser Evening",
+					react: RSVPConfirmationEmail({ data }),
+				});
+				console.log(
+					"Response confirmation email sent successfully to:",
+					data.email
+				);
+			} catch (emailError) {
+				console.error(
+					"Error sending response confirmation email:",
+					emailError
+				);
 			}
 		}
 
 		return NextResponse.json({
 			success: true,
-			message: existingRSVP ? "RSVP updated successfully" : "RSVP submitted successfully",
+			message: existingRSVP
+				? "RSVP updated successfully"
+				: "RSVP submitted successfully",
 			isUpdate: !!existingRSVP,
 		});
 	} catch (error) {
 		console.error("RSVP submission error:", error);
-		return NextResponse.json({ error: "Failed to submit RSVP" }, { status: 500 });
+		return NextResponse.json(
+			{ error: "Failed to submit RSVP" },
+			{ status: 500 }
+		);
 	}
 }

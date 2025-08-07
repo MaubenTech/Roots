@@ -1,16 +1,16 @@
-"use client";
+"use client"
 
-import { useParams } from "next/navigation";
-import { useEffect } from "react";
-import HomePage from "../page";
+import { useParams } from "next/navigation"
+import { useEffect } from "react"
+import HomePage from "../page"
 
 export default function DynamicPage() {
-	const params = useParams();
+  const params = useParams()
 
-	useEffect(() => {
-		// This will be handled by the main page component
-		// The slug will be processed there
-	}, [params]);
+  useEffect(() => {
+    // This will be handled by the main page component
+    // The slug will be processed there
+  }, [params])
 
-	return <HomePage />;
+  return <HomePage />
 }

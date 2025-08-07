@@ -10,6 +10,8 @@ interface InternalNotificationEmailProps {
     hasGuests?: string
     guestCount?: number
     donation?: string
+    isVip?: boolean
+    linkIdentifier?: string
   }
 }
 
@@ -71,6 +73,16 @@ export function InternalNotificationEmail({ data }: InternalNotificationEmailPro
               <Text style={{ fontSize: "16px", color: "#5D4E37", marginBottom: "10px" }}>
                 <strong style={{ color: "#6B8E23" }}>Interested in Donation:</strong>{" "}
                 {data.donation === "yes" ? "Yes" : "No"}
+              </Text>
+            )}
+            {data.isVip !== undefined && (
+              <Text style={{ fontSize: "16px", color: "#5D4E37", marginBottom: "10px" }}>
+                <strong style={{ color: "#6B8E23" }}>Guest Privileges:</strong> {data.isVip ? "Yes (VIP)" : "No"}
+              </Text>
+            )}
+            {data.linkIdentifier && (
+              <Text style={{ fontSize: "16px", color: "#5D4E37", marginBottom: "10px" }}>
+                <strong style={{ color: "#6B8E23" }}>Link ID:</strong> {data.linkIdentifier.substring(0, 8)}...
               </Text>
             )}
 
