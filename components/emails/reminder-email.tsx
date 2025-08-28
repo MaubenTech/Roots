@@ -1,14 +1,4 @@
-import {
-	Html,
-	Head,
-	Body,
-	Container,
-	Section,
-	Text,
-	Img,
-	Hr,
-	Link,
-} from "@react-email/components";
+import { Html, Head, Body, Container, Section, Text, Img, Hr, Link } from "@react-email/components";
 
 interface ReminderEmailProps {
 	data: {
@@ -76,9 +66,7 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 							Don't forget about our upcoming event!
 						</Text>
 
-						<Hr
-							style={{ borderColor: "#6B8E23", margin: "30px 0" }}
-						/>
+						<Hr style={{ borderColor: "#6B8E23", margin: "30px 0" }} />
 
 						{/* Greeting */}
 						<Text
@@ -97,11 +85,8 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								marginBottom: "20px",
 								lineHeight: "1.6",
 							}}>
-							This is a friendly reminder about the MaubenTech
-							Roots Corporate Cocktail & Fundraiser Evening.
-							{data.attending === "yes"
-								? " We're excited to see you there!"
-								: " We hope you can still join us if your plans have changed."}
+							This is a friendly reminder about the MaubenTech Roots Corporate Cocktail & Fundraiser Evening.
+							{data.attending === "yes" ? " We're excited to see you there!" : " We hope you can still join us if your plans have changed."}
 						</Text>
 
 						{/* Event Details */}
@@ -121,8 +106,7 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								color: "#5D4E37",
 								marginBottom: "10px",
 							}}>
-							<strong style={{ color: "#B8860B" }}>Event:</strong>{" "}
-							Corporate Cocktail & Fundraiser Evening
+							<strong style={{ color: "#B8860B" }}>Event:</strong> Corporate Cocktail & Fundraiser Evening
 						</Text>
 						<Text
 							style={{
@@ -130,8 +114,7 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								color: "#5D4E37",
 								marginBottom: "10px",
 							}}>
-							<strong style={{ color: "#B8860B" }}>Date:</strong>{" "}
-							Saturday, August 30th, 2025
+							<strong style={{ color: "#B8860B" }}>Date:</strong> Saturday, August 30th, 2025
 						</Text>
 						<Text
 							style={{
@@ -139,8 +122,7 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								color: "#5D4E37",
 								marginBottom: "10px",
 							}}>
-							<strong style={{ color: "#B8860B" }}>Time:</strong>{" "}
-							4:00 PM
+							<strong style={{ color: "#B8860B" }}>Time:</strong> 4:00 PM
 						</Text>
 						<Text
 							style={{
@@ -148,9 +130,7 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								color: "#5D4E37",
 								marginBottom: "10px",
 							}}>
-							<strong style={{ color: "#B8860B" }}>Venue:</strong>{" "}
-							Oladipo Diya St, Durumi 900103, Abuja by Smokey
-							house
+							<strong style={{ color: "#B8860B" }}>Venue:</strong> Oladipo Diya St, Durumi 900103, Abuja by Smokey house
 						</Text>
 						<Text
 							style={{
@@ -158,15 +138,10 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								color: "#5D4E37",
 								marginBottom: "20px",
 							}}>
-							<strong style={{ color: "#B8860B" }}>
-								Dress Code:
-							</strong>{" "}
-							Elegant Corporate Attire
+							<strong style={{ color: "#B8860B" }}>Dress Code:</strong> Elegant Corporate Attire
 						</Text>
 
-						<Hr
-							style={{ borderColor: "#6B8E23", margin: "30px 0" }}
-						/>
+						<Hr style={{ borderColor: "#6B8E23", margin: "30px 0" }} />
 
 						{/* Call to Action */}
 						<Text
@@ -176,10 +151,8 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								marginBottom: "20px",
 								lineHeight: "1.6",
 							}}>
-							Join us for an evening of elegance, meaningful
-							connections, and impactful conversations as we work
-							together to empower African youth through technology
-							and innovation.
+							Join us for an evening of elegance, meaningful connections, and impactful conversations as we work together to empower African youth
+							through technology and innovation.
 						</Text>
 
 						{/* Footer */}
@@ -200,10 +173,8 @@ export function ReminderEmail({ data }: ReminderEmailProps) {
 								textAlign: "center",
 							}}>
 							For any questions, please contact us at{" "}
-							<Link
-								href="mailto:events@maubentech.org"
-								style={{ color: "#6B8E23" }}>
-								events@maubentech.org
+							<Link href="mailto:events@maubentech.com" style={{ color: "#6B8E23" }}>
+								events@maubentech.com
 							</Link>
 						</Text>
 					</Section>

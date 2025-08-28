@@ -1,14 +1,4 @@
-import {
-	Html,
-	Head,
-	Body,
-	Container,
-	Section,
-	Text,
-	Img,
-	Hr,
-	Link,
-} from "@react-email/components";
+import { Html, Head, Body, Container, Section, Text, Img, Hr, Link } from "@react-email/components";
 
 interface CustomEmailProps {
 	data: {
@@ -67,9 +57,7 @@ export function CustomEmail({ data, subject, message }: CustomEmailProps) {
 							{subject}
 						</Text>
 
-						<Hr
-							style={{ borderColor: "#6B8E23", margin: "30px 0" }}
-						/>
+						<Hr style={{ borderColor: "#6B8E23", margin: "30px 0" }} />
 
 						{/* Greeting */}
 						<Text
@@ -93,9 +81,7 @@ export function CustomEmail({ data, subject, message }: CustomEmailProps) {
 							{message}
 						</Text>
 
-						<Hr
-							style={{ borderColor: "#6B8E23", margin: "30px 0" }}
-						/>
+						<Hr style={{ borderColor: "#6B8E23", margin: "30px 0" }} />
 
 						{/* Footer */}
 						<Text
@@ -117,10 +103,8 @@ export function CustomEmail({ data, subject, message }: CustomEmailProps) {
 								textAlign: "center",
 							}}>
 							For any questions, please contact us at{" "}
-							<Link
-								href="mailto:events@maubentech.com"
-								style={{ color: "#6B8E23" }}>
-								events@maubentech.org
+							<Link href="mailto:events@maubentech.com" style={{ color: "#6B8E23" }}>
+								events@maubentech.com
 							</Link>
 						</Text>
 					</Section>
