@@ -21,6 +21,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface RSVP {
 	id: number;
@@ -45,6 +46,12 @@ interface EmailRecipient {
 	email: string;
 	phone?: string;
 	company?: string;
+}
+
+interface UnusedLinkIdentifier {
+	uuid: string;
+	tracking_number: number;
+	is_vip: boolean;
 }
 
 export default function AdminPage() {
@@ -113,6 +120,12 @@ export default function AdminPage() {
 
 	// Add to the existing state for general emails
 	const [inviteIsHidden, setInviteIsHidden] = useState(false);
+
+	// New state for link identifier selection
+	const [linkIdentifierMode, setLinkIdentifierMode] = useState<"new" | "existing">("new");
+	const [unusedLinkIdentifiers, setUnusedLinkIdentifiers] = useState<UnusedLinkIdentifier[]>([]);
+	const [selectedExistingLinkId, setSelectedExistingLinkId] = useState("");
+	const [isLoadingUnusedLinks, setIsLoadingUnusedLinks] = useState(false);
 
 	useEffect(() => {
 		// Check if user is already authenticated
@@ -230,6 +243,31 @@ export default function AdminPage() {
 			console.error("Error fetching RSVPs:", error);
 		} finally {
 			setLoading(false);
+		}
+	};
+
+	const fetchUnusedLinkIdentifiers = async () => {
+		setIsLoadingUnusedLinks(true);
+		try {
+			const token = localStorage.getItem("admin_token");
+			const response = await fetch("/api/admin/get-unused-link-identifiers", {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
+
+			if (response.ok) {
+				const data = await response.json();
+				setUnusedLinkIdentifiers(data.linkIdentifiers || []);
+			} else {
+				console.error("Failed to fetch unused link identifiers");
+				setUnusedLinkIdentifiers([]);
+			}
+		} catch (error) {
+			console.error("Error fetching unused link identifiers:", error);
+			setUnusedLinkIdentifiers([]);
+		} finally {
+			setIsLoadingUnusedLinks(false);
 		}
 	};
 
@@ -435,6 +473,13 @@ export default function AdminPage() {
 	// General email functions
 	const handleGeneralEmailClick = () => {
 		setGeneralEmailDialogOpen(true);
+		// Reset invite-specific state
+		setLinkIdentifierMode("new");
+		setInviteLinkIdentifier("");
+		setSelectedExistingLinkId("");
+		setInviteIsVip(false);
+		setInviteIsHidden(false);
+		setLinkIdentifierError("");
 	};
 
 	const addRecipient = () => {
@@ -540,19 +585,44 @@ export default function AdminPage() {
 
 		// Special validation for invite emails
 		if (generalEmailType === "invite") {
-			if (!inviteLinkIdentifier.trim()) {
-				alert("Link identifier is required for invite emails");
-				return;
-			}
-			if (linkIdentifierError) {
-				alert("Please fix the link identifier error before sending");
-				return;
+			if (linkIdentifierMode === "new") {
+				if (!inviteLinkIdentifier.trim()) {
+					alert("Link identifier is required for invite emails");
+					return;
+				}
+				if (linkIdentifierError) {
+					alert("Please fix the link identifier error before sending");
+					return;
+				}
+			} else {
+				if (!selectedExistingLinkId) {
+					alert("Please select an existing link identifier");
+					return;
+				}
 			}
 		}
 
 		setIsSendingGeneralEmail(true);
 		try {
 			const token = localStorage.getItem("admin_token");
+
+			// Determine the link identifier to use
+			let linkIdentifierToUse = "";
+			let isVipToUse = inviteIsVip;
+
+			if (generalEmailType === "invite") {
+				if (linkIdentifierMode === "new") {
+					linkIdentifierToUse = inviteLinkIdentifier;
+				} else {
+					// Find the selected existing link identifier
+					const selectedLink = unusedLinkIdentifiers.find((link) => link.uuid === selectedExistingLinkId);
+					if (selectedLink) {
+						linkIdentifierToUse = selectedLink.uuid;
+						isVipToUse = selectedLink.is_vip; // Use the VIP status from the existing link
+					}
+				}
+			}
+
 			const response = await fetch("/api/admin/send-general-email", {
 				method: "POST",
 				headers: {
@@ -564,10 +634,11 @@ export default function AdminPage() {
 					recipients: validRecipients,
 					customSubject: generalEmailType === "custom" ? generalCustomSubject : undefined,
 					customMessage: generalEmailType === "custom" ? generalCustomMessage : undefined,
-					linkIdentifier: generalEmailType === "invite" ? inviteLinkIdentifier : undefined,
-					isVip: generalEmailType === "invite" ? inviteIsVip : undefined,
-					isHidden: generalEmailType === "invite" ? inviteIsHidden : undefined, // Add this line
+					linkIdentifier: generalEmailType === "invite" ? linkIdentifierToUse : undefined,
+					isVip: generalEmailType === "invite" ? isVipToUse : undefined,
+					isHidden: generalEmailType === "invite" ? inviteIsHidden : undefined,
 					siteUrl: generalEmailType === "invite" ? inviteSiteUrl : undefined,
+					useExistingLink: generalEmailType === "invite" && linkIdentifierMode === "existing",
 				}),
 			});
 
@@ -585,10 +656,13 @@ export default function AdminPage() {
 				setGeneralCustomMessage("");
 				setEmailRecipients([{ fullName: "", email: "" }]);
 				setInviteLinkIdentifier("");
+				setSelectedExistingLinkId("");
 				setInviteIsVip(false);
-				setInviteIsHidden(false); // Add this line
+				setInviteIsHidden(false);
 				setInviteSiteUrl("https://roots.maubentech.com");
 				setLinkIdentifierError("");
+				setLinkIdentifierMode("new");
+				setUnusedLinkIdentifiers([]);
 			} else {
 				const error = await response.json();
 				alert(`Failed to send emails: ${error.error}`);
@@ -637,7 +711,6 @@ export default function AdminPage() {
 									)}
 								</div>
 							</td>
-							{/* ... existing table cells ... */}
 							<td className="px-4 py-3">{rsvp.full_name}</td>
 							<td className="px-4 py-3">{rsvp.email}</td>
 							<td className="px-4 py-3">{rsvp.phone}</td>
@@ -824,8 +897,6 @@ export default function AdminPage() {
 								Hidden RSVPs ({hiddenRsvps.length}){hiddenRsvps.length > 0 && <EyeOff size={16} className="ml-2 text-purple-500" />}
 							</TabsTrigger>
 						</TabsList>
-
-						{/* ... existing TabsContent for production and test ... */}
 
 						<TabsContent value="production" className="space-y-6">
 							<div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -1355,31 +1426,94 @@ export default function AdminPage() {
 							<div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
 								<h4 className="font-semibold text-[#2C3E2D]">Invitation Settings</h4>
 
+								{/* Link Identifier Mode Selection */}
+								<div>
+									<Label className="text-[#2C3E2D] font-semibold mb-4 block">Link Identifier Option</Label>
+									<RadioGroup
+										value={linkIdentifierMode}
+										onValueChange={(value: "new" | "existing") => {
+											setLinkIdentifierMode(value);
+											if (value === "existing") {
+												fetchUnusedLinkIdentifiers();
+												setInviteLinkIdentifier("");
+												setLinkIdentifierError("");
+											} else {
+												setSelectedExistingLinkId("");
+												setUnusedLinkIdentifiers([]);
+											}
+										}}
+										className="flex gap-6">
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="new" id="link-mode-new" />
+											<Label htmlFor="link-mode-new">Create New Link Identifier</Label>
+										</div>
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="existing" id="link-mode-existing" />
+											<Label htmlFor="link-mode-existing">Use Existing Unused Link</Label>
+										</div>
+									</RadioGroup>
+								</div>
+
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div>
-										<Label htmlFor="invite-link-identifier" className="text-[#2C3E2D] font-semibold mb-2 block">
-											Link Identifier *
-										</Label>
-										<Input
-											id="invite-link-identifier"
-											value={inviteLinkIdentifier}
-											onChange={(e) => {
-												setInviteLinkIdentifier(e.target.value);
-												if (e.target.value.trim()) {
-													checkLinkIdentifier(e.target.value.trim());
-												} else {
-													setLinkIdentifierError("");
-												}
-											}}
-											className={`border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B] ${
-												linkIdentifierError ? "border-red-500" : ""
-											}`}
-											placeholder="e.g., unique-invite-123"
-										/>
-										{isCheckingLinkIdentifier && <p className="text-sm text-blue-600 mt-1">Checking availability...</p>}
-										{linkIdentifierError && <p className="text-sm text-red-600 mt-1">{linkIdentifierError}</p>}
-										<p className="text-sm text-gray-500 mt-1">This will be used to create the unique RSVP link for the invitee</p>
-									</div>
+									{linkIdentifierMode === "new" ? (
+										<div>
+											<Label htmlFor="invite-link-identifier" className="text-[#2C3E2D] font-semibold mb-2 block">
+												New Link Identifier *
+											</Label>
+											<Input
+												id="invite-link-identifier"
+												value={inviteLinkIdentifier}
+												onChange={(e) => {
+													setInviteLinkIdentifier(e.target.value);
+													if (e.target.value.trim()) {
+														checkLinkIdentifier(e.target.value.trim());
+													} else {
+														setLinkIdentifierError("");
+													}
+												}}
+												className={`border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B] ${
+													linkIdentifierError ? "border-red-500" : ""
+												}`}
+												placeholder="e.g., unique-invite-123"
+											/>
+											{isCheckingLinkIdentifier && <p className="text-sm text-blue-600 mt-1">Checking availability...</p>}
+											{linkIdentifierError && <p className="text-sm text-red-600 mt-1">{linkIdentifierError}</p>}
+											<p className="text-sm text-gray-500 mt-1">This will be used to create the unique RSVP link for the invitee</p>
+										</div>
+									) : (
+										<div>
+											<Label htmlFor="existing-link-select" className="text-[#2C3E2D] font-semibold mb-2 block">
+												Select Existing Link *
+											</Label>
+											<Select value={selectedExistingLinkId} onValueChange={setSelectedExistingLinkId} disabled={isLoadingUnusedLinks}>
+												<SelectTrigger className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]">
+													<SelectValue placeholder={isLoadingUnusedLinks ? "Loading..." : "Select a link identifier"} />
+												</SelectTrigger>
+												<SelectContent>
+													{unusedLinkIdentifiers.length === 0 ? (
+														<SelectItem value="no-links" disabled>
+															No unused link identifiers available
+														</SelectItem>
+													) : (
+														unusedLinkIdentifiers.map((link) => (
+															<SelectItem key={link.uuid} value={link.uuid}>
+																<div className="flex items-center gap-2">
+																	<span>{link.uuid}</span>
+																	<span className="text-xs text-gray-500">(#{link.tracking_number})</span>
+																	{link.is_vip && (
+																		<span className="px-1 py-0.5 rounded text-xs bg-amber-100 text-amber-800">VIP</span>
+																	)}
+																</div>
+															</SelectItem>
+														))
+													)}
+												</SelectContent>
+											</Select>
+											<p className="text-sm text-gray-500 mt-1">
+												Choose from existing link identifiers that haven't been used for RSVPs yet
+											</p>
+										</div>
+									)}
 
 									<div>
 										<Label htmlFor="invite-site-url" className="text-[#2C3E2D] font-semibold mb-2 block">
@@ -1396,24 +1530,36 @@ export default function AdminPage() {
 									</div>
 								</div>
 
-								<div>
-									<Label className="text-[#2C3E2D] font-semibold mb-4 block">Invitation Type</Label>
-									<RadioGroup
-										value={inviteIsVip ? "vip" : "regular"}
-										onValueChange={(value) => setInviteIsVip(value === "vip")}
-										className="flex gap-6">
-										<div className="flex items-center space-x-2">
-											<RadioGroupItem value="regular" id="invite-regular" />
-											<Label htmlFor="invite-regular">Regular Invitation</Label>
-										</div>
-										<div className="flex items-center space-x-2">
-											<RadioGroupItem value="vip" id="invite-vip" />
-											<Label htmlFor="invite-vip">VIP Invitation (with guest privileges)</Label>
-										</div>
-									</RadioGroup>
-								</div>
+								{linkIdentifierMode === "new" && (
+									<div>
+										<Label className="text-[#2C3E2D] font-semibold mb-4 block">Invitation Type</Label>
+										<RadioGroup
+											value={inviteIsVip ? "vip" : "regular"}
+											onValueChange={(value) => setInviteIsVip(value === "vip")}
+											className="flex gap-6">
+											<div className="flex items-center space-x-2">
+												<RadioGroupItem value="regular" id="invite-regular" />
+												<Label htmlFor="invite-regular">Regular Invitation</Label>
+											</div>
+											<div className="flex items-center space-x-2">
+												<RadioGroupItem value="vip" id="invite-vip" />
+												<Label htmlFor="invite-vip">VIP Invitation (with guest privileges)</Label>
+											</div>
+										</RadioGroup>
+									</div>
+								)}
 
-								{/* Add this after the VIP selection in the invite email form */}
+								{linkIdentifierMode === "existing" && selectedExistingLinkId && (
+									<div className="p-3 bg-blue-100 border border-blue-300 rounded-lg">
+										<p className="text-blue-800 text-sm">
+											<strong>Selected Link:</strong> {selectedExistingLinkId}
+											{unusedLinkIdentifiers.find((link) => link.uuid === selectedExistingLinkId)?.is_vip && (
+												<span className="ml-2 px-2 py-1 rounded text-xs bg-amber-100 text-amber-800">VIP Invitation</span>
+											)}
+										</p>
+									</div>
+								)}
+
 								<div>
 									<Label className="text-[#2C3E2D] font-semibold mb-4 block">RSVP Visibility</Label>
 									<RadioGroup
@@ -1554,7 +1700,8 @@ export default function AdminPage() {
 								!generalEmailType ||
 								emailRecipients.filter((r) => r.fullName.trim() && r.email.trim()).length === 0 ||
 								(generalEmailType === "custom" && (!generalCustomSubject || !generalCustomMessage)) ||
-								(generalEmailType === "invite" && (!inviteLinkIdentifier.trim() || !!linkIdentifierError))
+								(generalEmailType === "invite" && linkIdentifierMode === "new" && (!inviteLinkIdentifier.trim() || !!linkIdentifierError)) ||
+								(generalEmailType === "invite" && linkIdentifierMode === "existing" && !selectedExistingLinkId)
 							}
 							className="bg-[#6B8E23] hover:bg-[#5A7A1F]">
 							{isSendingGeneralEmail ? "Sending..." : "Send Emails"}
