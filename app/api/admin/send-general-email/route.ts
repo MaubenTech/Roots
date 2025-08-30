@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
 								linkIdentifier: linkIdentifier!,
 								isVip: isVip || false,
 							},
-							siteUrl: siteUrl || "https://yourdomain.com",
+							siteUrl: siteUrl || "https://roots.maubentech.com",
 						});
 						break;
 
@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
 
 				// Send email
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.org>",
+					from: "MaubenTech Roots <events@maubentech.com>",
 					to: [recipient.email],
 					subject: emailSubject,
 					react: emailComponent,
