@@ -127,6 +127,18 @@ export default function AdminPage() {
 	const [selectedExistingLinkId, setSelectedExistingLinkId] = useState("");
 	const [isLoadingUnusedLinks, setIsLoadingUnusedLinks] = useState(false);
 
+	// WhatsApp state variables
+	const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
+	const [whatsappRecipient, setWhatsappRecipient] = useState({ fullName: "", phone: "" });
+	const [whatsappLinkIdentifier, setWhatsappLinkIdentifier] = useState("");
+	const [whatsappIsVip, setWhatsappIsVip] = useState(false);
+	const [whatsappIsHidden, setWhatsappIsHidden] = useState(false);
+	const [whatsappSiteUrl, setWhatsappSiteUrl] = useState("https://roots.maubentech.com");
+	const [whatsappLinkMode, setWhatsappLinkMode] = useState<"new" | "existing">("new");
+	const [whatsappSelectedExistingLinkId, setWhatsappSelectedExistingLinkId] = useState("");
+	const [whatsappLinkIdentifierError, setWhatsappLinkIdentifierError] = useState("");
+	const [isCheckingWhatsappLinkIdentifier, setIsCheckingWhatsappLinkIdentifier] = useState(false);
+
 	useEffect(() => {
 		// Check if user is already authenticated
 		const token = localStorage.getItem("admin_token");
@@ -675,6 +687,183 @@ export default function AdminPage() {
 		}
 	};
 
+	// WhatsApp functions
+	const handleWhatsappInviteClick = () => {
+		setWhatsappDialogOpen(true);
+		// Reset state
+		setWhatsappLinkMode("new");
+		setWhatsappLinkIdentifier("");
+		setWhatsappSelectedExistingLinkId("");
+		setWhatsappIsVip(false);
+		setWhatsappIsHidden(false);
+		setWhatsappLinkIdentifierError("");
+		setWhatsappRecipient({ fullName: "", phone: "" });
+		setUnusedLinkIdentifiers([]);
+	};
+
+	const checkWhatsappLinkIdentifier = async (identifier: string) => {
+		if (!identifier.trim()) {
+			setWhatsappLinkIdentifierError("");
+			return;
+		}
+
+		setIsCheckingWhatsappLinkIdentifier(true);
+		setWhatsappLinkIdentifierError("");
+
+		try {
+			const token = localStorage.getItem("admin_token");
+			const response = await fetch("/api/admin/check-link-identifier", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({ linkIdentifier: identifier }),
+			});
+
+			if (response.ok) {
+				const result = await response.json();
+				if (result.exists) {
+					setWhatsappLinkIdentifierError("This link identifier already exists in the database");
+				}
+			}
+		} catch (error) {
+			console.error("Error checking link identifier:", error);
+			setWhatsappLinkIdentifierError("Error checking link identifier");
+		} finally {
+			setIsCheckingWhatsappLinkIdentifier(false);
+		}
+	};
+
+	const generateWhatsappMessage = () => {
+		// Determine the link identifier to use
+		let linkIdentifierToUse = "";
+		let isVipToUse = whatsappIsVip;
+
+		if (whatsappLinkMode === "new") {
+			linkIdentifierToUse = whatsappLinkIdentifier;
+		} else {
+			// Find the selected existing link identifier
+			const selectedLink = unusedLinkIdentifiers.find((link) => link.uuid === whatsappSelectedExistingLinkId);
+			if (selectedLink) {
+				linkIdentifierToUse = selectedLink.uuid;
+				isVipToUse = selectedLink.is_vip;
+			}
+		}
+
+		const rsvpLink = `${whatsappSiteUrl}/${linkIdentifierToUse}`;
+
+		const message = `🌟 *You're Invited!* 🌟
+
+Hi ${whatsappRecipient.fullName}!
+
+We are delighted to invite you to the *MaubenTech Roots Corporate Cocktail & Fundraiser Evening* - an exclusive event bringing together visionaries, innovators, and supporters who share our commitment to empowering African youth through technology.
+
+📅 *Event Details:*
+• *Date:* Saturday, August 30th, 2025
+• *Time:* 4:00 PM
+• *Venue:* Oladipo Diya St, Durumi 900103, Abuja by Smokey house
+• *Dress Code:* Corporate Fit That Bangs
+
+${isVipToUse ? "🎖️ *VIP Invitation* - You have guest privileges and may bring up to 1 guest to this exclusive event." : ""}
+
+Join us for an evening of elegance, meaningful connections, and the opportunity to make a lasting impact on the future of African youth in technology.
+
+*Please RSVP using your exclusive invitation link:*
+${rsvpLink}
+
+We look forward to celebrating with you!
+
+Best regards,
+The MaubenTech Roots Team
+
+For questions: events@maubentech.com`;
+
+		return message;
+	};
+
+	const handleSendWhatsappInvite = async () => {
+		if (!whatsappRecipient.fullName.trim() || !whatsappRecipient.phone.trim()) {
+			alert("Please enter both full name and phone number");
+			return;
+		}
+
+		// Validate link identifier
+		if (whatsappLinkMode === "new") {
+			if (!whatsappLinkIdentifier.trim()) {
+				alert("Link identifier is required");
+				return;
+			}
+			if (whatsappLinkIdentifierError) {
+				alert("Please fix the link identifier error before proceeding");
+				return;
+			}
+		} else {
+			if (!whatsappSelectedExistingLinkId) {
+				alert("Please select an existing link identifier");
+				return;
+			}
+		}
+
+		try {
+			// Create link identifier if needed
+			if (whatsappLinkMode === "new") {
+				const token = localStorage.getItem("admin_token");
+				const response = await fetch("/api/admin/create-link-identifier", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						linkIdentifier: whatsappLinkIdentifier,
+						isVip: whatsappIsVip,
+						isHidden: whatsappIsHidden,
+					}),
+				});
+
+				if (!response.ok) {
+					const error = await response.json();
+					alert(`Failed to create link identifier: ${error.error}`);
+					return;
+				}
+			}
+
+			// Generate WhatsApp message
+			const message = generateWhatsappMessage();
+
+			// Format phone number for WhatsApp (remove any non-digits and add country code if needed)
+			const phoneNumber = whatsappRecipient.phone.replace(/\D/g, "");
+
+			// If phone doesn't start with country code, you might want to add a default one
+			// For now, we'll use the number as provided
+
+			// Create WhatsApp URL
+			const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+			// Open WhatsApp
+			window.open(whatsappUrl, "_blank");
+
+			// Close dialog
+			setWhatsappDialogOpen(false);
+
+			// Reset form
+			setWhatsappRecipient({ fullName: "", phone: "" });
+			setWhatsappLinkIdentifier("");
+			setWhatsappSelectedExistingLinkId("");
+			setWhatsappIsVip(false);
+			setWhatsappIsHidden(false);
+			setWhatsappLinkIdentifierError("");
+			setWhatsappLinkMode("new");
+			setUnusedLinkIdentifiers([]);
+
+			alert("WhatsApp opened with invitation message. Please send the message to complete the invitation.");
+		} catch (error) {
+			console.error("Error preparing WhatsApp invite:", error);
+			alert("Failed to prepare WhatsApp invite. Please try again.");
+		}
+	};
+
 	const renderRSVPTable = (data: RSVP[], isTest = false, isHidden = false) => (
 		<div className="overflow-x-auto">
 			<table className="w-full">
@@ -871,6 +1060,10 @@ export default function AdminPage() {
 						<p className="text-[#5D4E37] mt-2">MaubenTech Roots Corporate Cocktail Evening</p>
 					</div>
 					<div className="flex gap-4">
+						<Button onClick={handleWhatsappInviteClick} className="bg-green-600 hover:bg-green-700 text-white">
+							<Send className="mr-2 h-4 w-4" />
+							Send WhatsApp Invite
+						</Button>
 						<Button onClick={handleGeneralEmailClick} className="bg-[#B8860B] hover:bg-[#A0750A] text-white">
 							<Send className="mr-2 h-4 w-4" />
 							Send General Emails
@@ -1705,6 +1898,235 @@ export default function AdminPage() {
 							}
 							className="bg-[#6B8E23] hover:bg-[#5A7A1F]">
 							{isSendingGeneralEmail ? "Sending..." : "Send Emails"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* WhatsApp Dialog */}
+			<Dialog open={whatsappDialogOpen} onOpenChange={setWhatsappDialogOpen}>
+				<DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>Send WhatsApp Invitation</DialogTitle>
+						<DialogDescription>Create and send an invitation via WhatsApp</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-6 py-4">
+						{/* Recipient Information */}
+						<div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
+							<h4 className="font-semibold text-[#2C3E2D]">Recipient Information</h4>
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<Label htmlFor="whatsapp-name" className="text-[#2C3E2D] font-semibold mb-2 block">
+										Full Name *
+									</Label>
+									<Input
+										id="whatsapp-name"
+										value={whatsappRecipient.fullName}
+										onChange={(e) => setWhatsappRecipient((prev) => ({ ...prev, fullName: e.target.value }))}
+										className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+										placeholder="John Doe"
+									/>
+								</div>
+								<div>
+									<Label htmlFor="whatsapp-phone" className="text-[#2C3E2D] font-semibold mb-2 block">
+										Phone Number *
+									</Label>
+									<Input
+										id="whatsapp-phone"
+										value={whatsappRecipient.phone}
+										onChange={(e) => setWhatsappRecipient((prev) => ({ ...prev, phone: e.target.value }))}
+										className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+										placeholder="+234XXXXXXXXXX"
+									/>
+									<p className="text-sm text-gray-500 mt-1">Include country code (e.g., +234 for Nigeria)</p>
+								</div>
+							</div>
+						</div>
+
+						{/* Link Identifier Settings */}
+						<div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+							<h4 className="font-semibold text-[#2C3E2D]">Invitation Settings</h4>
+
+							{/* Link Identifier Mode Selection */}
+							<div>
+								<Label className="text-[#2C3E2D] font-semibold mb-4 block">Link Identifier Option</Label>
+								<RadioGroup
+									value={whatsappLinkMode}
+									onValueChange={(value: "new" | "existing") => {
+										setWhatsappLinkMode(value);
+										if (value === "existing") {
+											fetchUnusedLinkIdentifiers();
+											setWhatsappLinkIdentifier("");
+											setWhatsappLinkIdentifierError("");
+										} else {
+											setWhatsappSelectedExistingLinkId("");
+											setUnusedLinkIdentifiers([]);
+										}
+									}}
+									className="flex gap-6">
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="new" id="whatsapp-link-mode-new" />
+										<Label htmlFor="whatsapp-link-mode-new">Create New Link Identifier</Label>
+									</div>
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="existing" id="whatsapp-link-mode-existing" />
+										<Label htmlFor="whatsapp-link-mode-existing">Use Existing Unused Link</Label>
+									</div>
+								</RadioGroup>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{whatsappLinkMode === "new" ? (
+									<div>
+										<Label htmlFor="whatsapp-link-identifier" className="text-[#2C3E2D] font-semibold mb-2 block">
+											New Link Identifier *
+										</Label>
+										<Input
+											id="whatsapp-link-identifier"
+											value={whatsappLinkIdentifier}
+											onChange={(e) => {
+												setWhatsappLinkIdentifier(e.target.value);
+												if (e.target.value.trim()) {
+													checkWhatsappLinkIdentifier(e.target.value.trim());
+												} else {
+													setWhatsappLinkIdentifierError("");
+												}
+											}}
+											className={`border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B] ${
+												whatsappLinkIdentifierError ? "border-red-500" : ""
+											}`}
+											placeholder="e.g., whatsapp-invite-123"
+										/>
+										{isCheckingWhatsappLinkIdentifier && <p className="text-sm text-blue-600 mt-1">Checking availability...</p>}
+										{whatsappLinkIdentifierError && <p className="text-sm text-red-600 mt-1">{whatsappLinkIdentifierError}</p>}
+										<p className="text-sm text-gray-500 mt-1">This will be used to create the unique RSVP link</p>
+									</div>
+								) : (
+									<div>
+										<Label htmlFor="whatsapp-existing-link-select" className="text-[#2C3E2D] font-semibold mb-2 block">
+											Select Existing Link *
+										</Label>
+										<Select
+											value={whatsappSelectedExistingLinkId}
+											onValueChange={setWhatsappSelectedExistingLinkId}
+											disabled={isLoadingUnusedLinks}>
+											<SelectTrigger className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]">
+												<SelectValue placeholder={isLoadingUnusedLinks ? "Loading..." : "Select a link identifier"} />
+											</SelectTrigger>
+											<SelectContent>
+												{unusedLinkIdentifiers.length === 0 ? (
+													<SelectItem value="no-links" disabled>
+														No unused link identifiers available
+													</SelectItem>
+												) : (
+													unusedLinkIdentifiers.map((link) => (
+														<SelectItem key={link.uuid} value={link.uuid}>
+															<div className="flex items-center gap-2">
+																<span>{link.uuid}</span>
+																<span className="text-xs text-gray-500">(#{link.tracking_number})</span>
+																{link.is_vip && (
+																	<span className="px-1 py-0.5 rounded text-xs bg-amber-100 text-amber-800">VIP</span>
+																)}
+															</div>
+														</SelectItem>
+													))
+												)}
+											</SelectContent>
+										</Select>
+										<p className="text-sm text-gray-500 mt-1">Choose from existing link identifiers that haven't been used yet</p>
+									</div>
+								)}
+
+								<div>
+									<Label htmlFor="whatsapp-site-url" className="text-[#2C3E2D] font-semibold mb-2 block">
+										Site URL
+									</Label>
+									<Input
+										id="whatsapp-site-url"
+										value={whatsappSiteUrl}
+										onChange={(e) => setWhatsappSiteUrl(e.target.value)}
+										className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+										placeholder="https://roots.maubentech.com"
+									/>
+									<p className="text-sm text-gray-500 mt-1">The base URL for the RSVP link</p>
+								</div>
+							</div>
+
+							{whatsappLinkMode === "new" && (
+								<div>
+									<Label className="text-[#2C3E2D] font-semibold mb-4 block">Invitation Type</Label>
+									<RadioGroup
+										value={whatsappIsVip ? "vip" : "regular"}
+										onValueChange={(value) => setWhatsappIsVip(value === "vip")}
+										className="flex gap-6">
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="regular" id="whatsapp-invite-regular" />
+											<Label htmlFor="whatsapp-invite-regular">Regular Invitation</Label>
+										</div>
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="vip" id="whatsapp-invite-vip" />
+											<Label htmlFor="whatsapp-invite-vip">VIP Invitation (with guest privileges)</Label>
+										</div>
+									</RadioGroup>
+								</div>
+							)}
+
+							{whatsappLinkMode === "existing" && whatsappSelectedExistingLinkId && (
+								<div className="p-3 bg-blue-100 border border-blue-300 rounded-lg">
+									<p className="text-blue-800 text-sm">
+										<strong>Selected Link:</strong> {whatsappSelectedExistingLinkId}
+										{unusedLinkIdentifiers.find((link) => link.uuid === whatsappSelectedExistingLinkId)?.is_vip && (
+											<span className="ml-2 px-2 py-1 rounded text-xs bg-amber-100 text-amber-800">VIP Invitation</span>
+										)}
+									</p>
+								</div>
+							)}
+
+							<div>
+								<Label className="text-[#2C3E2D] font-semibold mb-4 block">RSVP Visibility</Label>
+								<RadioGroup
+									value={whatsappIsHidden ? "hidden" : "visible"}
+									onValueChange={(value) => setWhatsappIsHidden(value === "hidden")}
+									className="flex gap-6">
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="visible" id="whatsapp-invite-visible" />
+										<Label htmlFor="whatsapp-invite-visible">Show in main production RSVPs</Label>
+									</div>
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="hidden" id="whatsapp-invite-hidden" />
+										<Label htmlFor="whatsapp-invite-hidden">Hide from main production RSVPs</Label>
+									</div>
+								</RadioGroup>
+								<p className="text-sm text-gray-500 mt-2">Hidden RSVPs won't appear in the main production list but are still valid RSVPs.</p>
+							</div>
+						</div>
+
+						{/* Preview Message */}
+						{whatsappRecipient.fullName && (whatsappLinkIdentifier || whatsappSelectedExistingLinkId) && (
+							<div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+								<h4 className="font-semibold text-[#2C3E2D]">Message Preview</h4>
+								<div className="bg-white p-4 rounded-lg border max-h-60 overflow-y-auto">
+									<pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">{generateWhatsappMessage()}</pre>
+								</div>
+							</div>
+						)}
+					</div>
+
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setWhatsappDialogOpen(false)}>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleSendWhatsappInvite}
+							disabled={
+								!whatsappRecipient.fullName.trim() ||
+								!whatsappRecipient.phone.trim() ||
+								(whatsappLinkMode === "new" && (!whatsappLinkIdentifier.trim() || !!whatsappLinkIdentifierError)) ||
+								(whatsappLinkMode === "existing" && !whatsappSelectedExistingLinkId)
+							}
+							className="bg-green-600 hover:bg-green-700 text-white">
+							Open WhatsApp
 						</Button>
 					</DialogFooter>
 				</DialogContent>
