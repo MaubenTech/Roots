@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
 			try {
 				await resend.emails.send({
 					from: "RSVP System <events@maubentech.com>",
-					to: ["events@maubentech.org"], // Replace with actual internal email
+					to: ["events@maubentech.com"], // Replace with actual internal email
 					subject: `${existingRSVP ? "Updated" : "New"} ${linkData.is_vip ? "VIP " : ""}RSVP Received - Corporate Cocktail Evening`,
 					react: InternalNotificationEmail({
 						data: {
