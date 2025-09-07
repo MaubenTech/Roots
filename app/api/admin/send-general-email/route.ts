@@ -113,8 +113,9 @@ export async function POST(request: NextRequest) {
 			// For invite emails
 			linkIdentifier,
 			isVip,
-			isHidden, // Add this parameter
+			isHidden,
 			siteUrl,
+			useExistingLink,
 		} = await request.json();
 
 		if (!emailType || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
@@ -134,14 +135,18 @@ export async function POST(request: NextRequest) {
 				return NextResponse.json({ error: "Link identifier is required for invite emails" }, { status: 400 });
 			}
 
-			// Check if link identifier already exists
-			const exists = await checkLinkIdentifierExists(linkIdentifier);
-			if (exists) {
-				return NextResponse.json({ error: "Link identifier already exists in database" }, { status: 400 });
-			}
+			// Only create new link identifier if not using existing one
+			if (!useExistingLink) {
+				// Check if link identifier already exists (only for new links)
+				const exists = await checkLinkIdentifierExists(linkIdentifier);
+				if (exists) {
+					return NextResponse.json({ error: "Link identifier already exists in database" }, { status: 400 });
+				}
 
-			// Create the link identifier in database
-			await createLinkIdentifier(linkIdentifier, isVip || false, isHidden || false);
+				// Create the link identifier in database
+				await createLinkIdentifier(linkIdentifier, isVip || false, isHidden || false);
+			}
+			// If using existing link, we don't need to create or check - it already exists and is unused
 		}
 
 		let emailSubject = "";
@@ -208,7 +213,7 @@ export async function POST(request: NextRequest) {
 								linkIdentifier: linkIdentifier!,
 								isVip: isVip || false,
 							},
-							siteUrl: siteUrl || "https://yourdomain.com",
+							siteUrl: siteUrl || "https://roots.maubentech.com",
 						});
 						break;
 
@@ -237,7 +242,7 @@ export async function POST(request: NextRequest) {
 
 				// Send email
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.com>",
+					from: "MaubenTech Roots <events@maubentech.com>",
 					to: [recipient.email],
 					subject: emailSubject,
 					react: emailComponent,

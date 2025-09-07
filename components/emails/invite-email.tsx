@@ -10,7 +10,7 @@ interface InviteEmailProps {
 	siteUrl?: string;
 }
 
-export function InviteEmail({ data, siteUrl = "https://yourdomain.com" }: InviteEmailProps) {
+export function InviteEmail({ data, siteUrl = "https://roots.maubentech.com" }: InviteEmailProps) {
 	const rsvpLink = `${siteUrl}/${data.linkIdentifier}`;
 
 	return (
