@@ -161,8 +161,8 @@ export function InviteEmail({ data, siteUrl = "https://yourdomain.com" }: Invite
 								textAlign: "center",
 							}}>
 							For any questions, please contact us at{" "}
-							<Link href="mailto:events@maubentech.org" style={{ color: "#6B8E23" }}>
-								events@maubentech.org
+							<Link href="mailto:events@maubentech.com" style={{ color: "#6B8E23" }}>
+								events@maubentech.com
 							</Link>
 						</Text>
 					</Section>

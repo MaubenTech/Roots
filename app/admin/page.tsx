@@ -21,6 +21,8 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface RSVP {
 	id: number;
@@ -45,6 +47,12 @@ interface EmailRecipient {
 	email: string;
 	phone?: string;
 	company?: string;
+}
+
+interface UnusedLinkIdentifier {
+	uuid: string;
+	tracking_number: number;
+	is_vip: boolean;
 }
 
 export default function AdminPage() {
@@ -103,6 +111,7 @@ export default function AdminPage() {
 	const [generalCustomMessage, setGeneralCustomMessage] = useState("");
 	const [emailRecipients, setEmailRecipients] = useState<EmailRecipient[]>([{ fullName: "", email: "" }]);
 	const [isSendingGeneralEmail, setIsSendingGeneralEmail] = useState(false);
+	const [sendToAllRecipients, setSendToAllRecipients] = useState(false);
 
 	// Invite email specific fields
 	const [inviteLinkIdentifier, setInviteLinkIdentifier] = useState("");
@@ -113,6 +122,24 @@ export default function AdminPage() {
 
 	// Add to the existing state for general emails
 	const [inviteIsHidden, setInviteIsHidden] = useState(false);
+
+	// New state for link identifier selection
+	const [linkIdentifierMode, setLinkIdentifierMode] = useState<"new" | "existing">("new");
+	const [unusedLinkIdentifiers, setUnusedLinkIdentifiers] = useState<UnusedLinkIdentifier[]>([]);
+	const [selectedExistingLinkId, setSelectedExistingLinkId] = useState("");
+	const [isLoadingUnusedLinks, setIsLoadingUnusedLinks] = useState(false);
+
+	// WhatsApp state variables
+	const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
+	const [whatsappRecipient, setWhatsappRecipient] = useState({ fullName: "", phone: "" });
+	const [whatsappLinkIdentifier, setWhatsappLinkIdentifier] = useState("");
+	const [whatsappIsVip, setWhatsappIsVip] = useState(false);
+	const [whatsappIsHidden, setWhatsappIsHidden] = useState(false);
+	const [whatsappSiteUrl, setWhatsappSiteUrl] = useState("https://roots.maubentech.com");
+	const [whatsappLinkMode, setWhatsappLinkMode] = useState<"new" | "existing">("new");
+	const [whatsappSelectedExistingLinkId, setWhatsappSelectedExistingLinkId] = useState("");
+	const [whatsappLinkIdentifierError, setWhatsappLinkIdentifierError] = useState("");
+	const [isCheckingWhatsappLinkIdentifier, setIsCheckingWhatsappLinkIdentifier] = useState(false);
 
 	useEffect(() => {
 		// Check if user is already authenticated
@@ -230,6 +257,31 @@ export default function AdminPage() {
 			console.error("Error fetching RSVPs:", error);
 		} finally {
 			setLoading(false);
+		}
+	};
+
+	const fetchUnusedLinkIdentifiers = async () => {
+		setIsLoadingUnusedLinks(true);
+		try {
+			const token = localStorage.getItem("admin_token");
+			const response = await fetch("/api/admin/get-unused-link-identifiers", {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
+
+			if (response.ok) {
+				const data = await response.json();
+				setUnusedLinkIdentifiers(data.linkIdentifiers || []);
+			} else {
+				console.error("Failed to fetch unused link identifiers");
+				setUnusedLinkIdentifiers([]);
+			}
+		} catch (error) {
+			console.error("Error fetching unused link identifiers:", error);
+			setUnusedLinkIdentifiers([]);
+		} finally {
+			setIsLoadingUnusedLinks(false);
 		}
 	};
 
@@ -435,6 +487,14 @@ export default function AdminPage() {
 	// General email functions
 	const handleGeneralEmailClick = () => {
 		setGeneralEmailDialogOpen(true);
+		// Reset invite-specific state
+		setLinkIdentifierMode("new");
+		setInviteLinkIdentifier("");
+		setSelectedExistingLinkId("");
+		setInviteIsVip(false);
+		setInviteIsHidden(false);
+		setLinkIdentifierError("");
+		setSendToAllRecipients(false);
 	};
 
 	const addRecipient = () => {
@@ -529,30 +589,69 @@ export default function AdminPage() {
 	};
 
 	const handleSendGeneralEmail = async () => {
-		if (!generalEmailType || emailRecipients.length === 0) return;
+		if (!generalEmailType) return;
 
-		// Validate recipients
-		const validRecipients = emailRecipients.filter((r) => r.fullName.trim() && r.email.trim());
-		if (validRecipients.length === 0) {
-			alert("Please add at least one valid recipient with name and email");
-			return;
+		let recipientsToUse: EmailRecipient[] = [];
+
+		if (sendToAllRecipients) {
+			// Get all RSVPs from production and hidden lists
+			const allRsvps = [...rsvps, ...hiddenRsvps];
+			recipientsToUse = allRsvps.map((rsvp) => ({
+				fullName: rsvp.full_name,
+				email: rsvp.email,
+				phone: rsvp.phone,
+				company: rsvp.company || "",
+			}));
+		} else {
+			// Validate recipients
+			const validRecipients = emailRecipients.filter((r) => r.fullName.trim() && r.email.trim());
+			if (validRecipients.length === 0) {
+				alert("Please add at least one valid recipient with name and email");
+				return;
+			}
+			recipientsToUse = validRecipients;
 		}
 
 		// Special validation for invite emails
 		if (generalEmailType === "invite") {
-			if (!inviteLinkIdentifier.trim()) {
-				alert("Link identifier is required for invite emails");
-				return;
-			}
-			if (linkIdentifierError) {
-				alert("Please fix the link identifier error before sending");
-				return;
+			if (linkIdentifierMode === "new") {
+				if (!inviteLinkIdentifier.trim()) {
+					alert("Link identifier is required for invite emails");
+					return;
+				}
+				if (linkIdentifierError) {
+					alert("Please fix the link identifier error before sending");
+					return;
+				}
+			} else {
+				if (!selectedExistingLinkId) {
+					alert("Please select an existing link identifier");
+					return;
+				}
 			}
 		}
 
 		setIsSendingGeneralEmail(true);
 		try {
 			const token = localStorage.getItem("admin_token");
+
+			// Determine the link identifier to use
+			let linkIdentifierToUse = "";
+			let isVipToUse = inviteIsVip;
+
+			if (generalEmailType === "invite") {
+				if (linkIdentifierMode === "new") {
+					linkIdentifierToUse = inviteLinkIdentifier;
+				} else {
+					// Find the selected existing link identifier
+					const selectedLink = unusedLinkIdentifiers.find((link) => link.uuid === selectedExistingLinkId);
+					if (selectedLink) {
+						linkIdentifierToUse = selectedLink.uuid;
+						isVipToUse = selectedLink.is_vip; // Use the VIP status from the existing link
+					}
+				}
+			}
+
 			const response = await fetch("/api/admin/send-general-email", {
 				method: "POST",
 				headers: {
@@ -561,13 +660,14 @@ export default function AdminPage() {
 				},
 				body: JSON.stringify({
 					emailType: generalEmailType,
-					recipients: validRecipients,
+					recipients: recipientsToUse,
 					customSubject: generalEmailType === "custom" ? generalCustomSubject : undefined,
 					customMessage: generalEmailType === "custom" ? generalCustomMessage : undefined,
-					linkIdentifier: generalEmailType === "invite" ? inviteLinkIdentifier : undefined,
-					isVip: generalEmailType === "invite" ? inviteIsVip : undefined,
-					isHidden: generalEmailType === "invite" ? inviteIsHidden : undefined, // Add this line
+					linkIdentifier: generalEmailType === "invite" ? linkIdentifierToUse : undefined,
+					isVip: generalEmailType === "invite" ? isVipToUse : undefined,
+					isHidden: generalEmailType === "invite" ? inviteIsHidden : undefined,
 					siteUrl: generalEmailType === "invite" ? inviteSiteUrl : undefined,
+					useExistingLink: generalEmailType === "invite" && linkIdentifierMode === "existing",
 				}),
 			});
 
@@ -585,10 +685,14 @@ export default function AdminPage() {
 				setGeneralCustomMessage("");
 				setEmailRecipients([{ fullName: "", email: "" }]);
 				setInviteLinkIdentifier("");
+				setSelectedExistingLinkId("");
 				setInviteIsVip(false);
-				setInviteIsHidden(false); // Add this line
+				setInviteIsHidden(false);
 				setInviteSiteUrl("https://roots.maubentech.com");
 				setLinkIdentifierError("");
+				setLinkIdentifierMode("new");
+				setUnusedLinkIdentifiers([]);
+				setSendToAllRecipients(false);
 			} else {
 				const error = await response.json();
 				alert(`Failed to send emails: ${error.error}`);
@@ -598,6 +702,183 @@ export default function AdminPage() {
 			alert("Failed to send emails. Please try again.");
 		} finally {
 			setIsSendingGeneralEmail(false);
+		}
+	};
+
+	// WhatsApp functions
+	const handleWhatsappInviteClick = () => {
+		setWhatsappDialogOpen(true);
+		// Reset state
+		setWhatsappLinkMode("new");
+		setWhatsappLinkIdentifier("");
+		setWhatsappSelectedExistingLinkId("");
+		setWhatsappIsVip(false);
+		setWhatsappIsHidden(false);
+		setWhatsappLinkIdentifierError("");
+		setWhatsappRecipient({ fullName: "", phone: "" });
+		setUnusedLinkIdentifiers([]);
+	};
+
+	const checkWhatsappLinkIdentifier = async (identifier: string) => {
+		if (!identifier.trim()) {
+			setWhatsappLinkIdentifierError("");
+			return;
+		}
+
+		setIsCheckingWhatsappLinkIdentifier(true);
+		setWhatsappLinkIdentifierError("");
+
+		try {
+			const token = localStorage.getItem("admin_token");
+			const response = await fetch("/api/admin/check-link-identifier", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({ linkIdentifier: identifier }),
+			});
+
+			if (response.ok) {
+				const result = await response.json();
+				if (result.exists) {
+					setWhatsappLinkIdentifierError("This link identifier already exists in the database");
+				}
+			}
+		} catch (error) {
+			console.error("Error checking link identifier:", error);
+			setWhatsappLinkIdentifierError("Error checking link identifier");
+		} finally {
+			setIsCheckingWhatsappLinkIdentifier(false);
+		}
+	};
+
+	const generateWhatsappMessage = () => {
+		// Determine the link identifier to use
+		let linkIdentifierToUse = "";
+		let isVipToUse = whatsappIsVip;
+
+		if (whatsappLinkMode === "new") {
+			linkIdentifierToUse = whatsappLinkIdentifier;
+		} else {
+			// Find the selected existing link identifier
+			const selectedLink = unusedLinkIdentifiers.find((link) => link.uuid === whatsappSelectedExistingLinkId);
+			if (selectedLink) {
+				linkIdentifierToUse = selectedLink.uuid;
+				isVipToUse = selectedLink.is_vip;
+			}
+		}
+
+		const rsvpLink = `${whatsappSiteUrl}/${linkIdentifierToUse}`;
+
+		const message = `🌟 *You're Invited!* 🌟
+
+Hi ${whatsappRecipient.fullName}!
+
+We are delighted to invite you to the *MaubenTech Roots Corporate Cocktail & Fundraiser Evening* - an exclusive event bringing together visionaries, innovators, and supporters who share our commitment to empowering African youth through technology.
+
+📅 *Event Details:*
+• *Date:* Saturday, August 30th, 2025
+• *Time:* 4:00 PM
+• *Venue:* Oladipo Diya St, Durumi 900103, Abuja by Smokey house
+• *Dress Code:* Corporate Fit That Bangs
+
+${isVipToUse ? "🎖️ *VIP Invitation* - You have guest privileges and may bring up to 1 guest to this exclusive event." : ""}
+
+Join us for an evening of elegance, meaningful connections, and the opportunity to make a lasting impact on the future of African youth in technology.
+
+*Please RSVP using your exclusive invitation link:*
+${rsvpLink}
+
+We look forward to celebrating with you!
+
+Best regards,
+The MaubenTech Roots Team
+
+For questions: events@maubentech.com`;
+
+		return message;
+	};
+
+	const handleSendWhatsappInvite = async () => {
+		if (!whatsappRecipient.fullName.trim() || !whatsappRecipient.phone.trim()) {
+			alert("Please enter both full name and phone number");
+			return;
+		}
+
+		// Validate link identifier
+		if (whatsappLinkMode === "new") {
+			if (!whatsappLinkIdentifier.trim()) {
+				alert("Link identifier is required");
+				return;
+			}
+			if (whatsappLinkIdentifierError) {
+				alert("Please fix the link identifier error before proceeding");
+				return;
+			}
+		} else {
+			if (!whatsappSelectedExistingLinkId) {
+				alert("Please select an existing link identifier");
+				return;
+			}
+		}
+
+		try {
+			// Create link identifier if needed
+			if (whatsappLinkMode === "new") {
+				const token = localStorage.getItem("admin_token");
+				const response = await fetch("/api/admin/create-link-identifier", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						linkIdentifier: whatsappLinkIdentifier,
+						isVip: whatsappIsVip,
+						isHidden: whatsappIsHidden,
+					}),
+				});
+
+				if (!response.ok) {
+					const error = await response.json();
+					alert(`Failed to create link identifier: ${error.error}`);
+					return;
+				}
+			}
+
+			// Generate WhatsApp message
+			const message = generateWhatsappMessage();
+
+			// Format phone number for WhatsApp (remove any non-digits and add country code if needed)
+			const phoneNumber = whatsappRecipient.phone.replace(/\D/g, "");
+
+			// If phone doesn't start with country code, you might want to add a default one
+			// For now, we'll use the number as provided
+
+			// Create WhatsApp URL
+			const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+			// Open WhatsApp
+			window.open(whatsappUrl, "_blank");
+
+			// Close dialog
+			setWhatsappDialogOpen(false);
+
+			// Reset form
+			setWhatsappRecipient({ fullName: "", phone: "" });
+			setWhatsappLinkIdentifier("");
+			setWhatsappSelectedExistingLinkId("");
+			setWhatsappIsVip(false);
+			setWhatsappIsHidden(false);
+			setWhatsappLinkIdentifierError("");
+			setWhatsappLinkMode("new");
+			setUnusedLinkIdentifiers([]);
+
+			alert("WhatsApp opened with invitation message. Please send the message to complete the invitation.");
+		} catch (error) {
+			console.error("Error preparing WhatsApp invite:", error);
+			alert("Failed to prepare WhatsApp invite. Please try again.");
 		}
 	};
 
@@ -637,7 +918,6 @@ export default function AdminPage() {
 									)}
 								</div>
 							</td>
-							{/* ... existing table cells ... */}
 							<td className="px-4 py-3">{rsvp.full_name}</td>
 							<td className="px-4 py-3">{rsvp.email}</td>
 							<td className="px-4 py-3">{rsvp.phone}</td>
@@ -798,6 +1078,10 @@ export default function AdminPage() {
 						<p className="text-[#5D4E37] mt-2">MaubenTech Roots Corporate Cocktail Evening</p>
 					</div>
 					<div className="flex gap-4">
+						<Button onClick={handleWhatsappInviteClick} className="bg-green-600 hover:bg-green-700 text-white">
+							<Send className="mr-2 h-4 w-4" />
+							Send WhatsApp Invite
+						</Button>
 						<Button onClick={handleGeneralEmailClick} className="bg-[#B8860B] hover:bg-[#A0750A] text-white">
 							<Send className="mr-2 h-4 w-4" />
 							Send General Emails
@@ -824,8 +1108,6 @@ export default function AdminPage() {
 								Hidden RSVPs ({hiddenRsvps.length}){hiddenRsvps.length > 0 && <EyeOff size={16} className="ml-2 text-purple-500" />}
 							</TabsTrigger>
 						</TabsList>
-
-						{/* ... existing TabsContent for production and test ... */}
 
 						<TabsContent value="production" className="space-y-6">
 							<div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -1355,31 +1637,94 @@ export default function AdminPage() {
 							<div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
 								<h4 className="font-semibold text-[#2C3E2D]">Invitation Settings</h4>
 
+								{/* Link Identifier Mode Selection */}
+								<div>
+									<Label className="text-[#2C3E2D] font-semibold mb-4 block">Link Identifier Option</Label>
+									<RadioGroup
+										value={linkIdentifierMode}
+										onValueChange={(value: "new" | "existing") => {
+											setLinkIdentifierMode(value);
+											if (value === "existing") {
+												fetchUnusedLinkIdentifiers();
+												setInviteLinkIdentifier("");
+												setLinkIdentifierError("");
+											} else {
+												setSelectedExistingLinkId("");
+												setUnusedLinkIdentifiers([]);
+											}
+										}}
+										className="flex gap-6">
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="new" id="link-mode-new" />
+											<Label htmlFor="link-mode-new">Create New Link Identifier</Label>
+										</div>
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="existing" id="link-mode-existing" />
+											<Label htmlFor="link-mode-existing">Use Existing Unused Link</Label>
+										</div>
+									</RadioGroup>
+								</div>
+
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div>
-										<Label htmlFor="invite-link-identifier" className="text-[#2C3E2D] font-semibold mb-2 block">
-											Link Identifier *
-										</Label>
-										<Input
-											id="invite-link-identifier"
-											value={inviteLinkIdentifier}
-											onChange={(e) => {
-												setInviteLinkIdentifier(e.target.value);
-												if (e.target.value.trim()) {
-													checkLinkIdentifier(e.target.value.trim());
-												} else {
-													setLinkIdentifierError("");
-												}
-											}}
-											className={`border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B] ${
-												linkIdentifierError ? "border-red-500" : ""
-											}`}
-											placeholder="e.g., unique-invite-123"
-										/>
-										{isCheckingLinkIdentifier && <p className="text-sm text-blue-600 mt-1">Checking availability...</p>}
-										{linkIdentifierError && <p className="text-sm text-red-600 mt-1">{linkIdentifierError}</p>}
-										<p className="text-sm text-gray-500 mt-1">This will be used to create the unique RSVP link for the invitee</p>
-									</div>
+									{linkIdentifierMode === "new" ? (
+										<div>
+											<Label htmlFor="invite-link-identifier" className="text-[#2C3E2D] font-semibold mb-2 block">
+												New Link Identifier *
+											</Label>
+											<Input
+												id="invite-link-identifier"
+												value={inviteLinkIdentifier}
+												onChange={(e) => {
+													setInviteLinkIdentifier(e.target.value);
+													if (e.target.value.trim()) {
+														checkLinkIdentifier(e.target.value.trim());
+													} else {
+														setLinkIdentifierError("");
+													}
+												}}
+												className={`border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B] ${
+													linkIdentifierError ? "border-red-500" : ""
+												}`}
+												placeholder="e.g., unique-invite-123"
+											/>
+											{isCheckingLinkIdentifier && <p className="text-sm text-blue-600 mt-1">Checking availability...</p>}
+											{linkIdentifierError && <p className="text-sm text-red-600 mt-1">{linkIdentifierError}</p>}
+											<p className="text-sm text-gray-500 mt-1">This will be used to create the unique RSVP link for the invitee</p>
+										</div>
+									) : (
+										<div>
+											<Label htmlFor="existing-link-select" className="text-[#2C3E2D] font-semibold mb-2 block">
+												Select Existing Link *
+											</Label>
+											<Select value={selectedExistingLinkId} onValueChange={setSelectedExistingLinkId} disabled={isLoadingUnusedLinks}>
+												<SelectTrigger className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]">
+													<SelectValue placeholder={isLoadingUnusedLinks ? "Loading..." : "Select a link identifier"} />
+												</SelectTrigger>
+												<SelectContent>
+													{unusedLinkIdentifiers.length === 0 ? (
+														<SelectItem value="no-links" disabled>
+															No unused link identifiers available
+														</SelectItem>
+													) : (
+														unusedLinkIdentifiers.map((link) => (
+															<SelectItem key={link.uuid} value={link.uuid}>
+																<div className="flex items-center gap-2">
+																	<span>{link.uuid}</span>
+																	<span className="text-xs text-gray-500">(#{link.tracking_number})</span>
+																	{link.is_vip && (
+																		<span className="px-1 py-0.5 rounded text-xs bg-amber-100 text-amber-800">VIP</span>
+																	)}
+																</div>
+															</SelectItem>
+														))
+													)}
+												</SelectContent>
+											</Select>
+											<p className="text-sm text-gray-500 mt-1">
+												Choose from existing link identifiers that haven't been used for RSVPs yet
+											</p>
+										</div>
+									)}
 
 									<div>
 										<Label htmlFor="invite-site-url" className="text-[#2C3E2D] font-semibold mb-2 block">
@@ -1396,24 +1741,36 @@ export default function AdminPage() {
 									</div>
 								</div>
 
-								<div>
-									<Label className="text-[#2C3E2D] font-semibold mb-4 block">Invitation Type</Label>
-									<RadioGroup
-										value={inviteIsVip ? "vip" : "regular"}
-										onValueChange={(value) => setInviteIsVip(value === "vip")}
-										className="flex gap-6">
-										<div className="flex items-center space-x-2">
-											<RadioGroupItem value="regular" id="invite-regular" />
-											<Label htmlFor="invite-regular">Regular Invitation</Label>
-										</div>
-										<div className="flex items-center space-x-2">
-											<RadioGroupItem value="vip" id="invite-vip" />
-											<Label htmlFor="invite-vip">VIP Invitation (with guest privileges)</Label>
-										</div>
-									</RadioGroup>
-								</div>
+								{linkIdentifierMode === "new" && (
+									<div>
+										<Label className="text-[#2C3E2D] font-semibold mb-4 block">Invitation Type</Label>
+										<RadioGroup
+											value={inviteIsVip ? "vip" : "regular"}
+											onValueChange={(value) => setInviteIsVip(value === "vip")}
+											className="flex gap-6">
+											<div className="flex items-center space-x-2">
+												<RadioGroupItem value="regular" id="invite-regular" />
+												<Label htmlFor="invite-regular">Regular Invitation</Label>
+											</div>
+											<div className="flex items-center space-x-2">
+												<RadioGroupItem value="vip" id="invite-vip" />
+												<Label htmlFor="invite-vip">VIP Invitation (with guest privileges)</Label>
+											</div>
+										</RadioGroup>
+									</div>
+								)}
 
-								{/* Add this after the VIP selection in the invite email form */}
+								{linkIdentifierMode === "existing" && selectedExistingLinkId && (
+									<div className="p-3 bg-blue-100 border border-blue-300 rounded-lg">
+										<p className="text-blue-800 text-sm">
+											<strong>Selected Link:</strong> {selectedExistingLinkId}
+											{unusedLinkIdentifiers.find((link) => link.uuid === selectedExistingLinkId)?.is_vip && (
+												<span className="ml-2 px-2 py-1 rounded text-xs bg-amber-100 text-amber-800">VIP Invitation</span>
+											)}
+										</p>
+									</div>
+								)}
+
 								<div>
 									<Label className="text-[#2C3E2D] font-semibold mb-4 block">RSVP Visibility</Label>
 									<RadioGroup
@@ -1469,95 +1826,341 @@ export default function AdminPage() {
 						)}
 
 						{/* Recipients */}
-						<div>
-							<div className="flex justify-between items-center mb-4">
-								<Label className="text-[#2C3E2D] font-semibold">Recipients *</Label>
-								<Button
-									type="button"
-									onClick={addRecipient}
-									variant="outline"
-									size="sm"
-									className="border-[#6B8E23] text-[#6B8E23] bg-transparent">
-									<Plus className="mr-2 h-4 w-4" />
-									Add Recipient
-								</Button>
+						{!sendToAllRecipients && (
+							<div>
+								<div className="flex justify-between items-center mb-4">
+									<Label className="text-[#2C3E2D] font-semibold">Recipients *</Label>
+									<Button
+										type="button"
+										onClick={addRecipient}
+										variant="outline"
+										size="sm"
+										className="border-[#6B8E23] text-[#6B8E23] bg-transparent">
+										<Plus className="mr-2 h-4 w-4" />
+										Add Recipient
+									</Button>
+								</div>
+
+								<div className="space-y-4 max-h-60 overflow-y-auto">
+									{emailRecipients.map((recipient, index) => (
+										<div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border border-gray-200 rounded-lg">
+											<div>
+												<Label htmlFor={`recipient-name-${index}`} className="text-sm font-medium mb-1 block">
+													Full Name *
+												</Label>
+												<Input
+													id={`recipient-name-${index}`}
+													value={recipient.fullName}
+													onChange={(e) => updateRecipient(index, "fullName", e.target.value)}
+													className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+													placeholder="John Doe"
+												/>
+											</div>
+
+											<div>
+												<Label htmlFor={`recipient-email-${index}`} className="text-sm font-medium mb-1 block">
+													Email *
+												</Label>
+												<Input
+													id={`recipient-email-${index}`}
+													type="email"
+													value={recipient.email}
+													onChange={(e) => updateRecipient(index, "email", e.target.value)}
+													className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+													placeholder="john@example.com"
+												/>
+											</div>
+
+											<div>
+												<Label htmlFor={`recipient-phone-${index}`} className="text-sm font-medium mb-1 block">
+													Phone
+												</Label>
+												<Input
+													id={`recipient-phone-${index}`}
+													value={recipient.phone || ""}
+													onChange={(e) => updateRecipient(index, "phone", e.target.value)}
+													className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+													placeholder="+1234567890"
+												/>
+											</div>
+
+											<div className="flex items-end">
+												<Button
+													type="button"
+													onClick={() => removeRecipient(index)}
+													variant="outline"
+													size="sm"
+													className="border-red-300 text-red-600 hover:bg-red-50"
+													disabled={emailRecipients.length === 1}>
+													<X className="h-4 w-4" />
+												</Button>
+											</div>
+										</div>
+									))}
+								</div>
 							</div>
-
-							<div className="space-y-4 max-h-60 overflow-y-auto">
-								{emailRecipients.map((recipient, index) => (
-									<div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border border-gray-200 rounded-lg">
-										<div>
-											<Label htmlFor={`recipient-name-${index}`} className="text-sm font-medium mb-1 block">
-												Full Name *
-											</Label>
-											<Input
-												id={`recipient-name-${index}`}
-												value={recipient.fullName}
-												onChange={(e) => updateRecipient(index, "fullName", e.target.value)}
-												className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
-												placeholder="John Doe"
-											/>
-										</div>
-
-										<div>
-											<Label htmlFor={`recipient-email-${index}`} className="text-sm font-medium mb-1 block">
-												Email *
-											</Label>
-											<Input
-												id={`recipient-email-${index}`}
-												type="email"
-												value={recipient.email}
-												onChange={(e) => updateRecipient(index, "email", e.target.value)}
-												className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
-												placeholder="john@example.com"
-											/>
-										</div>
-
-										<div>
-											<Label htmlFor={`recipient-phone-${index}`} className="text-sm font-medium mb-1 block">
-												Phone
-											</Label>
-											<Input
-												id={`recipient-phone-${index}`}
-												value={recipient.phone || ""}
-												onChange={(e) => updateRecipient(index, "phone", e.target.value)}
-												className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
-												placeholder="+1234567890"
-											/>
-										</div>
-
-										<div className="flex items-end">
-											<Button
-												type="button"
-												onClick={() => removeRecipient(index)}
-												variant="outline"
-												size="sm"
-												className="border-red-300 text-red-600 hover:bg-red-50"
-												disabled={emailRecipients.length === 1}>
-												<X className="h-4 w-4" />
-											</Button>
-										</div>
-									</div>
-								))}
-							</div>
-						</div>
+						)}
 					</div>
 
 					<DialogFooter>
-						<Button variant="outline" onClick={() => setGeneralEmailDialogOpen(false)}>
+						<div className="flex items-center space-x-2">
+							<Checkbox
+								id="send-to-all"
+								checked={sendToAllRecipients}
+								onCheckedChange={(checked) => setSendToAllRecipients(checked as boolean)}
+							/>
+							<Label htmlFor="send-to-all" className="text-sm">
+								Send emails to all recipients
+							</Label>
+						</div>
+						<div className="flex space-x-2">
+							<Button variant="outline" onClick={() => setGeneralEmailDialogOpen(false)}>
+								Cancel
+							</Button>
+							<Button
+								onClick={handleSendGeneralEmail}
+								disabled={
+									isSendingGeneralEmail ||
+									!generalEmailType ||
+									(!sendToAllRecipients && emailRecipients.filter((r) => r.fullName.trim() && r.email.trim()).length === 0) ||
+									(generalEmailType === "custom" && (!generalCustomSubject || !generalCustomMessage)) ||
+									(generalEmailType === "invite" &&
+										linkIdentifierMode === "new" &&
+										(!inviteLinkIdentifier.trim() || !!linkIdentifierError)) ||
+									(generalEmailType === "invite" && linkIdentifierMode === "existing" && !selectedExistingLinkId)
+								}
+								className="bg-[#6B8E23] hover:bg-[#5A7A1F]">
+								{isSendingGeneralEmail ? "Sending..." : "Send Emails"}
+							</Button>
+						</div>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* WhatsApp Dialog */}
+			<Dialog open={whatsappDialogOpen} onOpenChange={setWhatsappDialogOpen}>
+				<DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>Send WhatsApp Invitation</DialogTitle>
+						<DialogDescription>Create and send an invitation via WhatsApp</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-6 py-4">
+						{/* Recipient Information */}
+						<div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
+							<h4 className="font-semibold text-[#2C3E2D]">Recipient Information</h4>
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<Label htmlFor="whatsapp-name" className="text-[#2C3E2D] font-semibold mb-2 block">
+										Full Name *
+									</Label>
+									<Input
+										id="whatsapp-name"
+										value={whatsappRecipient.fullName}
+										onChange={(e) => setWhatsappRecipient((prev) => ({ ...prev, fullName: e.target.value }))}
+										className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+										placeholder="John Doe"
+									/>
+								</div>
+								<div>
+									<Label htmlFor="whatsapp-phone" className="text-[#2C3E2D] font-semibold mb-2 block">
+										Phone Number *
+									</Label>
+									<Input
+										id="whatsapp-phone"
+										value={whatsappRecipient.phone}
+										onChange={(e) => setWhatsappRecipient((prev) => ({ ...prev, phone: e.target.value }))}
+										className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+										placeholder="+234XXXXXXXXXX"
+									/>
+									<p className="text-sm text-gray-500 mt-1">Include country code (e.g., +234 for Nigeria)</p>
+								</div>
+							</div>
+						</div>
+
+						{/* Link Identifier Settings */}
+						<div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+							<h4 className="font-semibold text-[#2C3E2D]">Invitation Settings</h4>
+
+							{/* Link Identifier Mode Selection */}
+							<div>
+								<Label className="text-[#2C3E2D] font-semibold mb-4 block">Link Identifier Option</Label>
+								<RadioGroup
+									value={whatsappLinkMode}
+									onValueChange={(value: "new" | "existing") => {
+										setWhatsappLinkMode(value);
+										if (value === "existing") {
+											fetchUnusedLinkIdentifiers();
+											setWhatsappLinkIdentifier("");
+											setWhatsappLinkIdentifierError("");
+										} else {
+											setWhatsappSelectedExistingLinkId("");
+											setUnusedLinkIdentifiers([]);
+										}
+									}}
+									className="flex gap-6">
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="new" id="whatsapp-link-mode-new" />
+										<Label htmlFor="whatsapp-link-mode-new">Create New Link Identifier</Label>
+									</div>
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="existing" id="whatsapp-link-mode-existing" />
+										<Label htmlFor="whatsapp-link-mode-existing">Use Existing Unused Link</Label>
+									</div>
+								</RadioGroup>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{whatsappLinkMode === "new" ? (
+									<div>
+										<Label htmlFor="whatsapp-link-identifier" className="text-[#2C3E2D] font-semibold mb-2 block">
+											New Link Identifier *
+										</Label>
+										<Input
+											id="whatsapp-link-identifier"
+											value={whatsappLinkIdentifier}
+											onChange={(e) => {
+												setWhatsappLinkIdentifier(e.target.value);
+												if (e.target.value.trim()) {
+													checkWhatsappLinkIdentifier(e.target.value.trim());
+												} else {
+													setWhatsappLinkIdentifierError("");
+												}
+											}}
+											className={`border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B] ${
+												whatsappLinkIdentifierError ? "border-red-500" : ""
+											}`}
+											placeholder="e.g., whatsapp-invite-123"
+										/>
+										{isCheckingWhatsappLinkIdentifier && <p className="text-sm text-blue-600 mt-1">Checking availability...</p>}
+										{whatsappLinkIdentifierError && <p className="text-sm text-red-600 mt-1">{whatsappLinkIdentifierError}</p>}
+										<p className="text-sm text-gray-500 mt-1">This will be used to create the unique RSVP link</p>
+									</div>
+								) : (
+									<div>
+										<Label htmlFor="whatsapp-existing-link-select" className="text-[#2C3E2D] font-semibold mb-2 block">
+											Select Existing Link *
+										</Label>
+										<Select
+											value={whatsappSelectedExistingLinkId}
+											onValueChange={setWhatsappSelectedExistingLinkId}
+											disabled={isLoadingUnusedLinks}>
+											<SelectTrigger className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]">
+												<SelectValue placeholder={isLoadingUnusedLinks ? "Loading..." : "Select a link identifier"} />
+											</SelectTrigger>
+											<SelectContent>
+												{unusedLinkIdentifiers.length === 0 ? (
+													<SelectItem value="no-links" disabled>
+														No unused link identifiers available
+													</SelectItem>
+												) : (
+													unusedLinkIdentifiers.map((link) => (
+														<SelectItem key={link.uuid} value={link.uuid}>
+															<div className="flex items-center gap-2">
+																<span>{link.uuid}</span>
+																<span className="text-xs text-gray-500">(#{link.tracking_number})</span>
+																{link.is_vip && (
+																	<span className="px-1 py-0.5 rounded text-xs bg-amber-100 text-amber-800">VIP</span>
+																)}
+															</div>
+														</SelectItem>
+													))
+												)}
+											</SelectContent>
+										</Select>
+										<p className="text-sm text-gray-500 mt-1">Choose from existing link identifiers that haven't been used yet</p>
+									</div>
+								)}
+
+								<div>
+									<Label htmlFor="whatsapp-site-url" className="text-[#2C3E2D] font-semibold mb-2 block">
+										Site URL
+									</Label>
+									<Input
+										id="whatsapp-site-url"
+										value={whatsappSiteUrl}
+										onChange={(e) => setWhatsappSiteUrl(e.target.value)}
+										className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+										placeholder="https://roots.maubentech.com"
+									/>
+									<p className="text-sm text-gray-500 mt-1">The base URL for the RSVP link</p>
+								</div>
+							</div>
+
+							{whatsappLinkMode === "new" && (
+								<div>
+									<Label className="text-[#2C3E2D] font-semibold mb-4 block">Invitation Type</Label>
+									<RadioGroup
+										value={whatsappIsVip ? "vip" : "regular"}
+										onValueChange={(value) => setWhatsappIsVip(value === "vip")}
+										className="flex gap-6">
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="regular" id="whatsapp-invite-regular" />
+											<Label htmlFor="whatsapp-invite-regular">Regular Invitation</Label>
+										</div>
+										<div className="flex items-center space-x-2">
+											<RadioGroupItem value="vip" id="whatsapp-invite-vip" />
+											<Label htmlFor="whatsapp-invite-vip">VIP Invitation (with guest privileges)</Label>
+										</div>
+									</RadioGroup>
+								</div>
+							)}
+
+							{whatsappLinkMode === "existing" && whatsappSelectedExistingLinkId && (
+								<div className="p-3 bg-blue-100 border border-blue-300 rounded-lg">
+									<p className="text-blue-800 text-sm">
+										<strong>Selected Link:</strong> {whatsappSelectedExistingLinkId}
+										{unusedLinkIdentifiers.find((link) => link.uuid === whatsappSelectedExistingLinkId)?.is_vip && (
+											<span className="ml-2 px-2 py-1 rounded text-xs bg-amber-100 text-amber-800">VIP Invitation</span>
+										)}
+									</p>
+								</div>
+							)}
+
+							<div>
+								<Label className="text-[#2C3E2D] font-semibold mb-4 block">RSVP Visibility</Label>
+								<RadioGroup
+									value={whatsappIsHidden ? "hidden" : "visible"}
+									onValueChange={(value) => setWhatsappIsHidden(value === "hidden")}
+									className="flex gap-6">
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="visible" id="whatsapp-invite-visible" />
+										<Label htmlFor="whatsapp-invite-visible">Show in main production RSVPs</Label>
+									</div>
+									<div className="flex items-center space-x-2">
+										<RadioGroupItem value="hidden" id="whatsapp-invite-hidden" />
+										<Label htmlFor="whatsapp-invite-hidden">Hide from main production RSVPs</Label>
+									</div>
+								</RadioGroup>
+								<p className="text-sm text-gray-500 mt-2">Hidden RSVPs won't appear in the main production list but are still valid RSVPs.</p>
+							</div>
+						</div>
+
+						{/* Preview Message */}
+						{whatsappRecipient.fullName && (whatsappLinkIdentifier || whatsappSelectedExistingLinkId) && (
+							<div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+								<h4 className="font-semibold text-[#2C3E2D]">Message Preview</h4>
+								<div className="bg-white p-4 rounded-lg border max-h-60 overflow-y-auto">
+									<pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">{generateWhatsappMessage()}</pre>
+								</div>
+							</div>
+						)}
+					</div>
+
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setWhatsappDialogOpen(false)}>
 							Cancel
 						</Button>
 						<Button
-							onClick={handleSendGeneralEmail}
+							onClick={handleSendWhatsappInvite}
 							disabled={
-								isSendingGeneralEmail ||
-								!generalEmailType ||
-								emailRecipients.filter((r) => r.fullName.trim() && r.email.trim()).length === 0 ||
-								(generalEmailType === "custom" && (!generalCustomSubject || !generalCustomMessage)) ||
-								(generalEmailType === "invite" && (!inviteLinkIdentifier.trim() || !!linkIdentifierError))
+								!whatsappRecipient.fullName.trim() ||
+								!whatsappRecipient.phone.trim() ||
+								(whatsappLinkMode === "new" && (!whatsappLinkIdentifier.trim() || !!whatsappLinkIdentifierError)) ||
+								(whatsappLinkMode === "existing" && !whatsappSelectedExistingLinkId)
 							}
-							className="bg-[#6B8E23] hover:bg-[#5A7A1F]">
-							{isSendingGeneralEmail ? "Sending..." : "Send Emails"}
+							className="bg-green-600 hover:bg-green-700 text-white">
+							Open WhatsApp
 						</Button>
 					</DialogFooter>
 				</DialogContent>

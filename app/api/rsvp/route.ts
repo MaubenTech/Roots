@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
 		if (data.attending === "yes") {
 			try {
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.org>",
+					from: "MaubenTech Roots <noreply@maubentech.com>",
 					to: [data.email],
 					subject: "RSVP Confirmation - Corporate Cocktail & Fundraiser Evening",
 					react: RSVPConfirmationEmail({ data }),
@@ -188,8 +188,8 @@ export async function POST(request: NextRequest) {
 			// Send internal notification
 			try {
 				await resend.emails.send({
-					from: "RSVP System <noreply@maubentech.org>",
-					to: ["events@maubentech.org"], // Replace with actual internal email
+					from: "RSVP System <noreply@maubentech.com>",
+					to: ["events@maubentech.com"], // Replace with actual internal email
 					subject: `${existingRSVP ? "Updated" : "New"} ${linkData.is_vip ? "VIP " : ""}RSVP Received - Corporate Cocktail Evening`,
 					react: InternalNotificationEmail({
 						data: {
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
 			// Send confirmation email for "no" responses too
 			try {
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.org>",
+					from: "MaubenTech Roots <noreply@maubentech.com>",
 					to: [data.email],
 					subject: "Thank you for your response - Corporate Cocktail & Fundraiser Evening",
 					react: RSVPConfirmationEmail({ data }),

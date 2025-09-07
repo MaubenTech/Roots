@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
 
 				// Send email
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.org>",
+					from: "MaubenTech Roots <noreply@maubentech.com>",
 					to: [recipient.email],
 					subject: emailSubject,
 					react: emailComponent,
