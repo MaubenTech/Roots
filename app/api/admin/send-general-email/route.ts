@@ -8,6 +8,11 @@ import { ReminderEmail } from "@/components/emails/reminder-email";
 import { CustomEmail } from "@/components/emails/custom-email";
 import { InviteEmail } from "@/components/emails/invite-email";
 import { InternalNotificationEmail } from "@/components/emails/internal-notification";
+import { MaubenTechRSVPConfirmationEmail } from "@/components/emails/maubentech/rsvp-confirmation";
+import { MaubenTechReminderEmail } from "@/components/emails/maubentech/reminder-email";
+import { MaubenTechCustomEmail } from "@/components/emails/maubentech/custom-email";
+import { MaubenTechInviteEmail } from "@/components/emails/maubentech/invite-email";
+import { MaubenTechInternalNotificationEmail } from "@/components/emails/maubentech/internal-notification";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const dbPath = path.join(process.cwd(), "rsvp.db");
@@ -107,6 +112,7 @@ export async function POST(request: NextRequest) {
 
 		const {
 			emailType,
+			template = "roots",
 			recipients,
 			customSubject,
 			customMessage,
@@ -163,58 +169,106 @@ export async function POST(request: NextRequest) {
 				switch (emailType) {
 					case "confirmation":
 						emailSubject = "RSVP Confirmation - Corporate Cocktail & Fundraiser Evening";
-						emailComponent = RSVPConfirmationEmail({
-							data: {
-								fullName: recipient.fullName,
-								email: recipient.email,
-								phone: recipient.phone || "",
-								company: recipient.company || "",
-								attending: "yes", // Default for general emails
-								hasGuests: "",
-								guestCount: 0,
-								donation: "",
-							},
-						});
+						emailComponent =
+							template === "maubentech"
+								? MaubenTechRSVPConfirmationEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											phone: recipient.phone || "",
+											company: recipient.company || "",
+											attending: "yes", // Default for general emails
+											hasGuests: "",
+											guestCount: 0,
+											donation: "",
+										},
+									})
+								: RSVPConfirmationEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											phone: recipient.phone || "",
+											company: recipient.company || "",
+											attending: "yes", // Default for general emails
+											hasGuests: "",
+											guestCount: 0,
+											donation: "",
+										},
+									});
 						break;
 
 					case "reminder":
 						emailSubject = "Event Reminder - Corporate Cocktail & Fundraiser Evening";
-						emailComponent = ReminderEmail({
-							data: {
-								fullName: recipient.fullName,
-								email: recipient.email,
-								attending: "yes", // Default for general emails
-							},
-						});
+						emailComponent =
+							template === "maubentech"
+								? MaubenTechReminderEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											attending: "yes", // Default for general emails
+										},
+									})
+								: ReminderEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											attending: "yes", // Default for general emails
+										},
+									});
 						break;
 
 					case "internal":
 						emailSubject = "Internal Notification - Corporate Cocktail & Fundraiser Evening";
-						emailComponent = InternalNotificationEmail({
-							data: {
-								fullName: recipient.fullName,
-								email: recipient.email,
-								phone: recipient.phone || "",
-								company: recipient.company || "",
-								attending: "yes",
-								hasGuests: "",
-								guestCount: 0,
-								donation: "",
-							},
-						});
+						emailComponent =
+							template === "maubentech"
+								? MaubenTechInternalNotificationEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											phone: recipient.phone || "",
+											company: recipient.company || "",
+											attending: "yes",
+											hasGuests: "",
+											guestCount: 0,
+											donation: "",
+										},
+									})
+								: InternalNotificationEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											phone: recipient.phone || "",
+											company: recipient.company || "",
+											attending: "yes",
+											hasGuests: "",
+											guestCount: 0,
+											donation: "",
+										},
+									});
 						break;
 
 					case "invite":
 						emailSubject = `You're Invited - Corporate Cocktail & Fundraiser Evening${isVip ? " (VIP)" : ""}`;
-						emailComponent = InviteEmail({
-							data: {
-								fullName: recipient.fullName,
-								email: recipient.email,
-								linkIdentifier: linkIdentifier!,
-								isVip: isVip || false,
-							},
-							siteUrl: siteUrl || "https://roots.maubentech.com",
-						});
+						emailComponent =
+							template === "maubentech"
+								? MaubenTechInviteEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											linkIdentifier: linkIdentifier!,
+											isVip: isVip || false,
+										},
+										siteUrl: siteUrl || "https://roots.maubentech.com",
+									})
+								: InviteEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+											linkIdentifier: linkIdentifier!,
+											isVip: isVip || false,
+										},
+										siteUrl: siteUrl || "https://roots.maubentech.com",
+									});
 						break;
 
 					case "custom":
@@ -224,14 +278,24 @@ export async function POST(request: NextRequest) {
 							continue;
 						}
 						emailSubject = customSubject;
-						emailComponent = CustomEmail({
-							data: {
-								fullName: recipient.fullName,
-								email: recipient.email,
-							},
-							subject: customSubject,
-							message: customMessage,
-						});
+						emailComponent =
+							template === "maubentech"
+								? MaubenTechCustomEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+										},
+										subject: customSubject,
+										message: customMessage,
+									})
+								: CustomEmail({
+										data: {
+											fullName: recipient.fullName,
+											email: recipient.email,
+										},
+										subject: customSubject,
+										message: customMessage,
+									});
 						break;
 
 					default:
@@ -242,7 +306,7 @@ export async function POST(request: NextRequest) {
 
 				// Send email
 				await resend.emails.send({
-					from: "MaubenTech Roots <noreply@maubentech.com>",
+					from: "MaubenTech Roots <events@maubentech.com>",
 					to: [recipient.email],
 					subject: emailSubject,
 					react: emailComponent,

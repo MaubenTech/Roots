@@ -6,6 +6,9 @@ import { Resend } from "resend";
 import { RSVPConfirmationEmail } from "@/components/emails/rsvp-confirmation";
 import { ReminderEmail } from "@/components/emails/reminder-email";
 import { CustomEmail } from "@/components/emails/custom-email";
+import { MaubenTechRSVPConfirmationEmail } from "@/components/emails/maubentech/rsvp-confirmation";
+import { MaubenTechReminderEmail } from "@/components/emails/maubentech/reminder-email";
+import { MaubenTechCustomEmail } from "@/components/emails/maubentech/custom-email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const dbPath = path.join(process.cwd(), "rsvp.db");
@@ -67,29 +70,19 @@ export async function POST(request: NextRequest) {
 	try {
 		// Verify admin authentication
 		if (!verifyAdmin(request)) {
-			return NextResponse.json(
-				{ error: "Unauthorized" },
-				{ status: 401 }
-			);
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
-		const { rsvpId, emailType, customSubject, customMessage } =
-			await request.json();
+		const { rsvpId, emailType, template = "roots", customSubject, customMessage } = await request.json();
 
 		if (!rsvpId || !emailType) {
-			return NextResponse.json(
-				{ error: "RSVP ID and email type are required" },
-				{ status: 400 }
-			);
+			return NextResponse.json({ error: "RSVP ID and email type are required" }, { status: 400 });
 		}
 
 		// Get RSVP data
 		const rsvp = await getRSVPById(rsvpId);
 		if (!rsvp) {
-			return NextResponse.json(
-				{ error: "RSVP not found" },
-				{ status: 404 }
-			);
+			return NextResponse.json({ error: "RSVP not found" }, { status: 404 });
 		}
 
 		const emailData = {
@@ -109,15 +102,13 @@ export async function POST(request: NextRequest) {
 		// Determine email type and content
 		switch (emailType) {
 			case "confirmation":
-				emailSubject =
-					"RSVP Confirmation - Corporate Cocktail & Fundraiser Evening";
-				emailComponent = RSVPConfirmationEmail({ data: emailData });
+				emailSubject = "RSVP Confirmation - Corporate Cocktail & Fundraiser Evening";
+				emailComponent = template === "maubentech" ? MaubenTechRSVPConfirmationEmail({ data: emailData }) : RSVPConfirmationEmail({ data: emailData });
 				break;
 
 			case "reminder":
-				emailSubject =
-					"Event Reminder - Corporate Cocktail & Fundraiser Evening";
-				emailComponent = ReminderEmail({ data: emailData });
+				emailSubject = "Event Reminder - Corporate Cocktail & Fundraiser Evening";
+				emailComponent = template === "maubentech" ? MaubenTechReminderEmail({ data: emailData }) : ReminderEmail({ data: emailData });
 				break;
 
 			case "custom":
@@ -130,18 +121,22 @@ export async function POST(request: NextRequest) {
 					);
 				}
 				emailSubject = customSubject;
-				emailComponent = CustomEmail({
-					data: emailData,
-					subject: customSubject,
-					message: customMessage,
-				});
+				emailComponent =
+					template === "maubentech"
+						? MaubenTechCustomEmail({
+								data: emailData,
+								subject: customSubject,
+								message: customMessage,
+							})
+						: CustomEmail({
+								data: emailData,
+								subject: customSubject,
+								message: customMessage,
+							});
 				break;
 
 			default:
-				return NextResponse.json(
-					{ error: "Invalid email type" },
-					{ status: 400 }
-				);
+				return NextResponse.json({ error: "Invalid email type" }, { status: 400 });
 		}
 
 		// Send email
@@ -161,16 +156,10 @@ export async function POST(request: NextRequest) {
 			});
 		} catch (emailError) {
 			console.error("Error sending email:", emailError);
-			return NextResponse.json(
-				{ error: "Failed to send email" },
-				{ status: 500 }
-			);
+			return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
 		}
 	} catch (error) {
 		console.error("Error in send email route:", error);
-		return NextResponse.json(
-			{ error: "Failed to process email request" },
-			{ status: 500 }
-		);
+		return NextResponse.json({ error: "Failed to process email request" }, { status: 500 });
 	}
 }
