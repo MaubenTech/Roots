@@ -25,7 +25,13 @@ export function MaubenTechCustomEmail({ data, subject, message }: CustomEmailPro
 							boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
 						}}>
 						<Section style={{ textAlign: "center", marginBottom: "20px" }}>
-							<Img src="/images/maubentech-logo.png" alt="MaubenTech Logo" width="80" height="80" style={{ margin: "0 auto" }} />
+							<Img
+								src="https://roots.maubentech.com/images/maubentech-logo.png"
+								alt="MaubenTech Logo"
+								width="80"
+								height="80"
+								style={{ margin: "0 auto" }}
+							/>
 						</Section>
 						{/* Header with MaubenTech branding */}
 						<Section
