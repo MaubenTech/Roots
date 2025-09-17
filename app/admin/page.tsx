@@ -105,6 +105,9 @@ export default function AdminPage() {
 	const [isSendingEmail, setIsSendingEmail] = useState(false);
 	const [emailTemplate, setEmailTemplate] = useState("roots");
 
+	const [emailAttachments, setEmailAttachments] = useState<File[]>([]);
+	const [generalEmailAttachments, setGeneralEmailAttachments] = useState<File[]>([]);
+
 	// General email functionality
 	const [generalEmailDialogOpen, setGeneralEmailDialogOpen] = useState(false);
 	const [generalEmailType, setGeneralEmailType] = useState("");
@@ -441,25 +444,46 @@ export default function AdminPage() {
 		window.URL.revokeObjectURL(url);
 	};
 
+	const handleEmailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		if (e.target.files) {
+			setEmailAttachments(Array.from(e.target.files));
+		}
+	};
+
+	const handleGeneralEmailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		if (e.target.files) {
+			setGeneralEmailAttachments(Array.from(e.target.files));
+		}
+	};
+
 	const handleSendEmail = async () => {
 		if (!emailRSVP || !emailType) return;
 
 		setIsSendingEmail(true);
 		try {
 			const token = localStorage.getItem("admin_token");
+			const formData = new FormData();
+
+			formData.append("rsvpId", emailRSVP.id.toString());
+			formData.append("emailType", emailType);
+			formData.append("template", emailTemplate);
+
+			if (emailType === "custom") {
+				formData.append("customSubject", customSubject);
+				formData.append("customMessage", customMessage);
+			}
+
+			// Add attachments
+			emailAttachments.forEach((file, index) => {
+				formData.append(`attachments`, file);
+			});
+
 			const response = await fetch("/api/admin/send-email", {
 				method: "POST",
 				headers: {
-					"Content-Type": "application/json",
 					Authorization: `Bearer ${token}`,
 				},
-				body: JSON.stringify({
-					rsvpId: emailRSVP.id,
-					emailType,
-					customSubject: emailType === "custom" ? customSubject : undefined,
-					customMessage: emailType === "custom" ? customMessage : undefined,
-					template: emailTemplate,
-				}),
+				body: formData,
 			});
 
 			if (response.ok) {
@@ -471,6 +495,7 @@ export default function AdminPage() {
 				setCustomSubject("");
 				setCustomMessage("");
 				setEmailTemplate("roots");
+				setEmailAttachments([]);
 			} else {
 				const error = await response.json();
 				alert(`Failed to send email: ${error.error}`);
@@ -639,6 +664,7 @@ export default function AdminPage() {
 		setIsSendingGeneralEmail(true);
 		try {
 			const token = localStorage.getItem("admin_token");
+			const formData = new FormData();
 
 			// Determine the link identifier to use
 			let linkIdentifierToUse = "";
@@ -657,24 +683,34 @@ export default function AdminPage() {
 				}
 			}
 
+			formData.append("emailType", generalEmailType);
+			formData.append("recipients", JSON.stringify(recipientsToUse));
+			formData.append("template", generalEmailTemplate);
+
+			if (generalEmailType === "custom") {
+				formData.append("customSubject", generalCustomSubject);
+				formData.append("customMessage", generalCustomMessage);
+			}
+
+			if (generalEmailType === "invite") {
+				formData.append("linkIdentifier", linkIdentifierToUse);
+				formData.append("isVip", isVipToUse.toString());
+				formData.append("isHidden", inviteIsHidden.toString());
+				formData.append("siteUrl", inviteSiteUrl);
+				formData.append("useExistingLink", (linkIdentifierMode === "existing").toString());
+			}
+
+			// Add attachments
+			generalEmailAttachments.forEach((file, index) => {
+				formData.append(`attachments`, file);
+			});
+
 			const response = await fetch("/api/admin/send-general-email", {
 				method: "POST",
 				headers: {
-					"Content-Type": "application/json",
 					Authorization: `Bearer ${token}`,
 				},
-				body: JSON.stringify({
-					emailType: generalEmailType,
-					recipients: recipientsToUse,
-					customSubject: generalEmailType === "custom" ? generalCustomSubject : undefined,
-					customMessage: generalEmailType === "custom" ? generalCustomMessage : undefined,
-					linkIdentifier: generalEmailType === "invite" ? linkIdentifierToUse : undefined,
-					isVip: generalEmailType === "invite" ? isVipToUse : undefined,
-					isHidden: generalEmailType === "invite" ? inviteIsHidden : undefined,
-					siteUrl: generalEmailType === "invite" ? inviteSiteUrl : undefined,
-					useExistingLink: generalEmailType === "invite" && linkIdentifierMode === "existing",
-					template: generalEmailTemplate,
-				}),
+				body: formData,
 			});
 
 			if (response.ok) {
@@ -700,6 +736,7 @@ export default function AdminPage() {
 				setUnusedLinkIdentifiers([]);
 				setSendToAllRecipients(false);
 				setGeneralEmailTemplate("roots");
+				setGeneralEmailAttachments([]);
 			} else {
 				const error = await response.json();
 				alert(`Failed to send emails: ${error.error}`);
@@ -1577,6 +1614,32 @@ For questions: events@maubentech.com`;
 								</div>
 							</>
 						)}
+
+						<div>
+							<Label htmlFor="email-attachments" className="text-[#2C3E2D] font-semibold mb-2 block">
+								Attachments
+							</Label>
+							<Input
+								id="email-attachments"
+								type="file"
+								multiple
+								onChange={handleEmailFileChange}
+								className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+							/>
+							{emailAttachments.length > 0 && (
+								<div className="mt-2">
+									<p className="text-sm text-gray-600 mb-1">Selected files:</p>
+									<ul className="text-sm text-gray-500">
+										{emailAttachments.map((file, index) => (
+											<li key={index}>
+												• {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+											</li>
+										))}
+									</ul>
+								</div>
+							)}
+							<p className="text-sm text-gray-500 mt-1">You can attach multiple files of any type. Maximum total size: 25MB per email.</p>
+						</div>
 					</div>
 
 					<DialogFooter>
@@ -1861,6 +1924,32 @@ For questions: events@maubentech.com`;
 								</div>
 							</>
 						)}
+
+						<div>
+							<Label htmlFor="general-email-attachments" className="text-[#2C3E2D] font-semibold mb-2 block">
+								Attachments
+							</Label>
+							<Input
+								id="general-email-attachments"
+								type="file"
+								multiple
+								onChange={handleGeneralEmailFileChange}
+								className="border-[#6B8E23] focus:border-[#B8860B] focus:ring-[#B8860B]"
+							/>
+							{generalEmailAttachments.length > 0 && (
+								<div className="mt-2">
+									<p className="text-sm text-gray-600 mb-1">Selected files:</p>
+									<ul className="text-sm text-gray-500">
+										{generalEmailAttachments.map((file, index) => (
+											<li key={index}>
+												• {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+											</li>
+										))}
+									</ul>
+								</div>
+							)}
+							<p className="text-sm text-gray-500 mt-1">You can attach multiple files of any type. Maximum total size: 25MB per email.</p>
+						</div>
 
 						{/* Recipients */}
 						{!sendToAllRecipients && (

@@ -73,7 +73,12 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
-		const { rsvpId, emailType, template = "roots", customSubject, customMessage } = await request.json();
+		const formData = await request.formData();
+		const rsvpId = formData.get("rsvpId") as string;
+		const emailType = formData.get("emailType") as string;
+		const template = (formData.get("template") as string) || "roots";
+		const customSubject = formData.get("customSubject") as string;
+		const customMessage = formData.get("customMessage") as string;
 
 		if (!rsvpId || !emailType) {
 			return NextResponse.json({ error: "RSVP ID and email type are required" }, { status: 400 });
@@ -95,6 +100,20 @@ export async function POST(request: NextRequest) {
 			guestCount: rsvp.guest_count,
 			donation: rsvp.donation,
 		};
+
+		// Handle file attachments
+		const attachments: any[] = [];
+		const files = formData.getAll("attachments") as File[];
+
+		for (const file of files) {
+			if (file && file.size > 0) {
+				const buffer = await file.arrayBuffer();
+				attachments.push({
+					filename: file.name,
+					content: Buffer.from(buffer),
+				});
+			}
+		}
 
 		let emailSubject = "";
 		let emailComponent = null;
@@ -139,14 +158,24 @@ export async function POST(request: NextRequest) {
 				return NextResponse.json({ error: "Invalid email type" }, { status: 400 });
 		}
 
+		// Determine sender email based on template
+		const fromEmail = template === "maubentech" ? "MaubenTech <noreply@maubentech.com>" : "MaubenTech Roots <events@maubentech.com>";
+
 		// Send email
 		try {
-			await resend.emails.send({
-				from: "MaubenTech Roots <events@maubentech.com>",
+			const emailOptions: any = {
+				from: fromEmail,
 				to: [rsvp.email],
 				subject: emailSubject,
 				react: emailComponent,
-			});
+			};
+
+			// Add attachments if any
+			if (attachments.length > 0) {
+				emailOptions.attachments = attachments;
+			}
+
+			await resend.emails.send(emailOptions);
 
 			console.log(`${emailType} email sent successfully to:`, rsvp.email);
 

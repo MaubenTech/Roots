@@ -110,28 +110,51 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
 
-		const {
-			emailType,
-			template = "roots",
-			recipients,
-			customSubject,
-			customMessage,
-			// For invite emails
-			linkIdentifier,
-			isVip,
-			isHidden,
-			siteUrl,
-			useExistingLink,
-		} = await request.json();
+		const formData = await request.formData();
+		const emailType = formData.get("emailType") as string;
+		const template = (formData.get("template") as string) || "roots";
+		const recipientsJson = formData.get("recipients") as string;
+		const customSubject = formData.get("customSubject") as string;
+		const customMessage = formData.get("customMessage") as string;
+		const linkIdentifier = formData.get("linkIdentifier") as string;
+		const isVip = formData.get("isVip") === "true";
+		const isHidden = formData.get("isHidden") === "true";
+		const siteUrl = formData.get("siteUrl") as string;
+		const useExistingLink = formData.get("useExistingLink") === "true";
 
-		if (!emailType || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
+		if (!emailType || !recipientsJson) {
 			return NextResponse.json({ error: "Email type and recipients are required" }, { status: 400 });
+		}
+
+		let recipients;
+		try {
+			recipients = JSON.parse(recipientsJson);
+		} catch (error) {
+			return NextResponse.json({ error: "Invalid recipients format" }, { status: 400 });
+		}
+
+		if (!Array.isArray(recipients) || recipients.length === 0) {
+			return NextResponse.json({ error: "Recipients must be a non-empty array" }, { status: 400 });
 		}
 
 		// Validate recipients format
 		for (const recipient of recipients) {
 			if (!recipient.email || !recipient.fullName) {
 				return NextResponse.json({ error: "Each recipient must have email and fullName" }, { status: 400 });
+			}
+		}
+
+		// Handle file attachments
+		const attachments: any[] = [];
+		const files = formData.getAll("attachments") as File[];
+
+		for (const file of files) {
+			if (file && file.size > 0) {
+				const buffer = await file.arrayBuffer();
+				attachments.push({
+					filename: file.name,
+					content: Buffer.from(buffer),
+				});
 			}
 		}
 
@@ -159,6 +182,9 @@ export async function POST(request: NextRequest) {
 		let successCount = 0;
 		let failureCount = 0;
 		const errors: string[] = [];
+
+		// Determine sender email based on template
+		const fromEmail = template === "maubentech" ? "MaubenTech <noreply@maubentech.com>" : "MaubenTech Roots <events@maubentech.com>";
 
 		// Send emails to all recipients
 		for (const recipient of recipients) {
@@ -305,12 +331,19 @@ export async function POST(request: NextRequest) {
 				}
 
 				// Send email
-				await resend.emails.send({
-					from: "MaubenTech Roots <events@maubentech.com>",
+				const emailOptions: any = {
+					from: fromEmail,
 					to: [recipient.email],
 					subject: emailSubject,
 					react: emailComponent,
-				});
+				};
+
+				// Add attachments if any
+				if (attachments.length > 0) {
+					emailOptions.attachments = attachments;
+				}
+
+				await resend.emails.send(emailOptions);
 
 				console.log(`${emailType} email sent successfully to:`, recipient.email);
 				successCount++;
